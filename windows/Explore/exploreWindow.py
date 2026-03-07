@@ -5,9 +5,11 @@ from styles.colors import colors
 # Todo - Change the size of the window
 
 
-def exploreWindow():
+
+def exploreWindow(email: str):
     """
     This function is used to create the Explore Window.
+    :param email: str (user email, currently unused)
     """
 
     # open the window

@@ -4,14 +4,12 @@ from styles.colors import colors
 # Todo - Change the size of the window
 
 
-def dashboardWindow():
+
+def dashboardWindow(email: str):
     """
     Display the main dashboard window of the application.
-
+    :param email: str (user email, currently unused)
     :return: None
-    """
-    """
-    This function is used to display the dashboard window.
     """
 
     # open the window

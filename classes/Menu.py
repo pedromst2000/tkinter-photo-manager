@@ -173,16 +173,12 @@ class menu:
 
             if i == 0:
                 opt.bind("<Button-1>", lambda e: exploreWindow(email))
-
             elif i == 1:
                 opt.bind("<Button-1>", lambda e: profileWindow(email))
-
             elif i == 2:
                 opt.bind("<Button-1>", lambda e: notificationsWindow(email))
-
             elif i == 3:
                 opt.bind("<Button-1>", lambda e: dashboardWindow(email))
-
             elif i == 4:
                 opt.bind(
                     "<Button-1>",

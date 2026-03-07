@@ -5,9 +5,11 @@ from styles.colors import colors
 # Todo - Change the size of the window
 
 
-def notificationsWindow():
+
+def notificationsWindow(email: str):
     """
     This function is used to display the notifications window.
+    :param email: str (user email, currently unused)
     """
 
     # open the window

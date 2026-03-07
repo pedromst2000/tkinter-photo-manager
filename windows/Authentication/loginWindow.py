@@ -220,13 +220,20 @@ def loginWindow(Window: object) -> None:
         lambda e: on_click_outside(e, _loginWindow_, inputEmail, inputPassword),
     )
 
-    # bind - when the user clicks (onClick) on the button, will trigger checkLogin function
-    btnSignIn.bind(
-        "<Button-1>",
-        lambda event: checkLogin(
-            inputEmail.get(), inputPassword.get(), _loginWindow_, Window
-        ),
-    )
+    def trigger_check_login(event=None):
+        """
+        Helper function to trigger the login check using the current input values.
+        Can be called by button click or Enter key event.
+
+        :param event: Optional event object from Tkinter (default: None)
+        :return: None
+        """
+        checkLogin(inputEmail.get(), inputPassword.get(), _loginWindow_, Window)
+
+    # Bind button click
+    btnSignIn.bind("<Button-1>", trigger_check_login)
+    # Bind Enter key (Return) to window
+    _loginWindow_.bind("<Return>", trigger_check_login)
 
     _loginWindow_.grab_set()
 
@@ -273,9 +280,11 @@ def checkLogin(email: str, password: str, loginWindow: object, Window: object) -
 
         loginWindow.destroy()  # destroy the login window
         Window.destroy()
-        homeWindow(email, isLogged, isNewUser) if userPayload[
-            "isBlocked"
-        ] == False else homeBannedWindow(email)
+        (
+            homeWindow(email, isLogged, isNewUser)
+            if userPayload["isBlocked"] == False
+            else homeBannedWindow(email)
+        )
 
 
 def openSignUpLink(event: object, loginWindow: object, window: object) -> None:

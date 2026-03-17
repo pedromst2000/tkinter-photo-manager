@@ -1,0 +1,2 @@
+## Enforce LF line endings for all text files to avoid cross-platform issues and yamllint errors
+* text=auto eol=lf

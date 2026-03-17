@@ -1,0 +1,13 @@
+notID,type,message,userID,senderID,referenceID,referenceType,isRead
+1,new_photo,A user you follow added a new photo to their album!,2,,,,False
+2,comment,Someone commented on a photo you liked!,2,,,,False
+3,new_album,A new photo was added to your favorite album!,2,,,,False
+4,follow,Someone viewed your profile!,2,,,,False
+5,new_photo,A user you follow added a new photo to their album!,3,,,,False
+6,comment,Someone commented on a photo you liked!,3,,,,False
+7,new_album,A new photo was added to your favorite album!,3,,,,False
+8,follow,Someone viewed your profile!,3,,,,False
+9,new_photo,A user you follow added a new photo to their album!,1,,,,False
+10,comment,Someone commented on a photo you liked!,1,,,,False
+11,new_album,A new photo was added to your favorite album!,1,,,,False
+12,follow,Someone viewed your profile!,1,,,,False

@@ -1,7 +1,0 @@
-userID;username;email;password;avatar;role;followers;photos;isBlocked
-1;admin;admin@gmail.com;123admin;assets/images/profile_avatars/admin_avatar.jpg;admin;120;220;False
-2;pedromst;pedromst@gmail.com;123pedro;assets/images/profile_avatars/pedromst_avatar.png;regular;1200;510;False
-3;Charles;charles@gmail.com;123charles;assets/images/profile_avatars/charles_avatar.jpg;regular;670;40;True
-4;AnaKirk;anak@gmail.com;123ana;assets/images/profile_avatars/AnaKirk_avatar.jpg;regular;1430;321;False
-5;katrine;katrinePetrova@gmail.com;123katrine;assets/images/profile_avatars/katrine_avatar.jpg;regular;2100;412;False
-6;asd;asd@hotmail.com;asd;assets/images/profile_avatars/default_avatar.jpg;unsigned;0;0;False

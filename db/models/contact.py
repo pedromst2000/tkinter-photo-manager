@@ -1,6 +1,14 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+)
 
 from db.engine import Base, SessionLocal
 
@@ -12,10 +20,26 @@ class ContactModel(Base):
 
     __tablename__: str = "contacts"
 
-    contactID: int = Column(Integer, primary_key=True, autoincrement=True)
-    title: str = Column(String, nullable=False)
-    message: str = Column(String, nullable=False)
-    userID: int = Column(Integer, ForeignKey("users.userID"), nullable=False)
+    __table_args__ = (
+        CheckConstraint("id > 0 AND id < 10000000", name="ck_contacts_id_range"),
+        CheckConstraint(
+            "userID > 0 AND userID < 10000000", name="ck_contacts_userID_range"
+        ),
+        CheckConstraint("length(trim(title)) > 0", name="ck_contacts_title_not_empty"),
+        CheckConstraint(
+            "length(trim(message)) > 0", name="ck_contacts_message_not_empty"
+        ),
+        CheckConstraint("length(title) <= 75", name="ck_contacts_title_maxlen"),
+        CheckConstraint("length(message) <= 255", name="ck_contacts_message_maxlen"),
+        Index("ix_contacts_userID", "userID"),
+    )
+
+    id: int = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    title: str = Column(String(75), nullable=False)
+    message: str = Column(String(255), nullable=False)
+    userID: int = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     createdAt: DateTime = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -33,7 +57,7 @@ class ContactModel(Base):
             dict: A dictionary representation of the ContactModel instance.
         """
         return {
-            "contactID": self.contactID,
+            "id": self.id,
             "title": self.title,
             "message": self.message,
             "userID": self.userID,
@@ -65,9 +89,23 @@ class ContactModel(Base):
         Returns:
             dict: A dictionary representation of the newly created contact message.
         """
+        # application-level validation: trim and ensure non-empty within limits
+        trimmed_title = title.strip() if title is not None else ""
+        trimmed_message = message.strip() if message is not None else ""
+        if not trimmed_title:
+            raise ValueError("Title is required")
+        if not trimmed_message:
+            raise ValueError("Message is required")
+        if len(trimmed_title) > 75:
+            raise ValueError("Title must be at most 75 characters")
+        if len(trimmed_message) > 255:
+            raise ValueError("Message must be at most 255 characters")
+
         with SessionLocal() as session:
             with session.begin():
-                obj: ContactModel = cls(title=title, message=message, userID=userID)
+                obj: ContactModel = cls(
+                    title=trimmed_title, message=trimmed_message, userID=userID
+                )
                 session.add(obj)
                 session.flush()
                 return obj.to_dict()

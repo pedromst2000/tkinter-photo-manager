@@ -1,6 +1,16 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import relationship
 
 from db.engine import Base, SessionLocal
 
@@ -12,9 +22,21 @@ class AlbumModel(Base):
 
     __tablename__: str = "albuns"
 
-    albumID: int = Column(Integer, primary_key=True, autoincrement=True)
-    name: str = Column(String, nullable=False)
-    creatorID: int = Column(Integer, ForeignKey("users.userID"), nullable=False)
+    __table_args__ = (
+        UniqueConstraint("creatorID", "name", name="uq_albums_creatorID_name"),
+        CheckConstraint("id > 0 AND id < 10000000", name="ck_albums_id_range"),
+        CheckConstraint(
+            "creatorID > 0 AND creatorID < 10000000", name="ck_albums_creatorID_range"
+        ),
+        CheckConstraint("length(trim(name)) > 0", name="ck_albums_name_not_empty"),
+        Index("ix_albums_creatorID", "creatorID"),
+    )
+
+    id: int = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    name: str = Column(String(50), nullable=False)
+    creatorID: int = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     createdAt: DateTime = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -24,6 +46,29 @@ class AlbumModel(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+    # ORM relationship to photos so deleting an album cascades to its photos
+    photos_rel = relationship(
+        "PhotoModel",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    # alias for backward-compatibility
+    @property
+    def photos(self):
+        return self.photos_rel
+
+    # ORM relationship to favorites so deleting an album cascades to its favorites
+    favorites_rel = relationship(
+        "FavoriteModel",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    @property
+    def favorites(self):
+        return self.favorites_rel
+
     def to_dict(self) -> dict:
         """Convert the AlbumModel instance to a dictionary.
 
@@ -32,7 +77,7 @@ class AlbumModel(Base):
         """
 
         return {
-            "albumID": self.albumID,
+            "id": self.id,
             "name": self.name,
             "creatorID": self.creatorID,
             "createdAt": self.createdAt,
@@ -62,9 +107,16 @@ class AlbumModel(Base):
         Returns:
             dict: A dictionary representation of the newly created album.
         """
+        # model-level defensive trim/validation (service should already validate)
+        trimmed = name.strip() if name is not None else ""
+        if not trimmed:
+            raise ValueError("Album name must not be empty")
+        if len(trimmed) > 50:
+            raise ValueError("Album name must be at most 50 characters")
+
         with SessionLocal() as session:
             with session.begin():
-                obj: AlbumModel = cls(name=name, creatorID=creatorID)
+                obj: AlbumModel = cls(name=trimmed, creatorID=creatorID)
                 session.add(obj)
                 session.flush()
                 return obj.to_dict()
@@ -81,9 +133,7 @@ class AlbumModel(Base):
         """
         with SessionLocal() as session:
             with session.begin():
-                a: AlbumModel = (
-                    session.query(cls).filter_by(albumID=updated["albumID"]).first()
-                )
+                a: AlbumModel = session.query(cls).filter_by(id=updated["id"]).first()
                 if a:
                     a.name = updated["name"]
         return updated
@@ -100,7 +150,7 @@ class AlbumModel(Base):
             dict | None: A dictionary representation of the album if found, otherwise None.
         """
         with SessionLocal() as session:
-            a = session.query(cls).filter_by(albumID=album_id).first()
+            a = session.query(cls).filter_by(id=album_id).first()
             return a.to_dict() if a else None
 
     @classmethod
@@ -133,7 +183,7 @@ class AlbumModel(Base):
         """
         with SessionLocal() as session:
             with session.begin():
-                a = session.query(cls).filter_by(albumID=album_id).first()
+                a = session.query(cls).filter_by(id=album_id).first()
                 if a:
                     session.delete(a)
                     return True

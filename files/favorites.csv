@@ -1,4 +1,4 @@
-favoriteID,albumID,userID
+id,albumID,userID
 1,6,2
 2,5,2
 3,1,5

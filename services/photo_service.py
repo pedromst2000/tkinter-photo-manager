@@ -1,7 +1,14 @@
 from datetime import datetime, timezone
 from typing import Optional, Tuple
 
-from db.models import CategoryModel, LikeModel, PhotoModel, UserModel
+from db.models import (
+    CategoryModel,
+    LikeModel,
+    PhotoImageModel,
+    PhotoModel,
+    RatingModel,
+    UserModel,
+)
 
 
 class PhotoService:
@@ -48,15 +55,21 @@ class PhotoService:
     @staticmethod
     def get_photos_by_user(user_id: int) -> list:
         """
-        Retrieve all photos uploaded by a specific user.
+        Retrieve all photos uploaded by a specific user (through their albums).
 
         Parameters:
             user_id: The ID of the user.
 
         Returns:
-            list: A list of photo dictionaries uploaded by the user.
+            list: A list of photo dictionaries owned by the user.
         """
-        return PhotoModel.get_by_user(user_id)
+        from db.models import AlbumModel
+
+        albums = AlbumModel.get_by_creator(user_id)
+        result = []
+        for album in albums:
+            result.extend(PhotoModel.get_by_album(album["id"]))
+        return result
 
     @staticmethod
     def get_photos_by_category(category_name: str) -> list:
@@ -72,7 +85,7 @@ class PhotoService:
         categories = CategoryModel.get_all()
         category = next((c for c in categories if c["category"] == category_name), None)
         if category:
-            return PhotoModel.get_by_category(category["categoryID"])
+            return PhotoModel.get_by_category(category["id"])
         return []
 
     @staticmethod
@@ -91,6 +104,9 @@ class PhotoService:
         photos = PhotoModel.get_all()
         categories = CategoryModel.get_all()
         users = UserModel.get_all()
+        from db.models import AlbumModel
+
+        albums = AlbumModel.get_all()
 
         # Helper to get category name for a photo
         def get_category_name(photo: dict) -> str:
@@ -103,23 +119,24 @@ class PhotoService:
                 str: The name of the category, or empty string if not found.
             """
 
-            match = next(
-                (c for c in categories if c["categoryID"] == photo["categoryID"]), {}
-            )
+            match = next((c for c in categories if c["id"] == photo["categoryID"]), {})
             return match.get("category", "")
 
-        # Helper to get username for a photo
+        # Helper to get username for a photo via its album's creatorID
         def get_username(photo: dict) -> str:
             """
-            Get the username for a photo.
+            Get the username for a photo via the owning album's creatorID.
 
             Parameters:
-                photo (dict): The photo dictionary containing "userID".
+                photo (dict): The photo dictionary containing "albumID".
             Returns:
-                str: The username of the photo's uploader, or empty string if not found.
+                str: The username of the photo's owner, or empty string if not found.
             """
 
-            match = next((u for u in users if u["userID"] == photo["userID"]), {})
+            album = next((a for a in albums if a["id"] == photo["albumID"]), None)
+            if not album:
+                return ""
+            match = next((u for u in users if u["id"] == album["creatorID"]), {})
             return match.get("username", "")
 
         result = []
@@ -147,7 +164,6 @@ class PhotoService:
     @staticmethod
     def create_photo(
         image_path: str,
-        user_id: int,
         album_id: int = None,
         category_id: int = None,
         description: str = "",
@@ -159,7 +175,6 @@ class PhotoService:
 
         Parameters:
             image_path (str): The file path of the photo image.
-            user_id (int): The ID of the user uploading the photo.
             album_id (int, optional): The ID of the album to associate with the photo. Defaults to None.
             category_id (int, optional): The ID of the category to associate with the photo. Defaults to None.
             description (str, optional): A description for the photo. Defaults to an empty string.
@@ -169,14 +184,16 @@ class PhotoService:
             dict: The created photo as a dictionary.
         """
 
-        return PhotoModel.create(
-            image=image_path,
-            userID=user_id,
-            albumID=album_id,
-            categoryID=category_id,
+        # Create photo row first (without image), then create PhotoImage
+        photo = PhotoModel.create(
             description=description,
             publishedDate=published_date or datetime.now(timezone.utc),
+            categoryID=category_id,
+            albumID=album_id,
         )
+        PhotoImageModel.create(photo_id=photo["id"], image=image_path)
+        # return enriched photo dict
+        return PhotoModel.get_by_id(photo["id"])
 
     @staticmethod
     def delete_photo(photo_id: int) -> bool:
@@ -190,6 +207,33 @@ class PhotoService:
             bool: True if deleted successfully, False otherwise.
         """
         return PhotoModel.delete(photo_id)
+
+    @staticmethod
+    def delete_photo_for_user(user_id: int, photo_id: int) -> bool:
+        """
+        Delete a photo if the given user is the owner (via album creator) or an admin.
+
+        Parameters:
+            user_id: The ID of the requesting user.
+            photo_id: The ID of the photo to delete.
+
+        Returns:
+            bool: True if deleted, False otherwise.
+        """
+        photo = PhotoModel.get_by_id(photo_id)
+        if not photo:
+            return False
+        from db.models import AlbumModel
+
+        album = (
+            AlbumModel.get_by_id(photo.get("albumID")) if photo.get("albumID") else None
+        )
+        owner_id = album["creatorID"] if album else None
+        # if owner matches, delete
+        if owner_id == user_id:
+            return PhotoModel.delete(photo_id)
+        # otherwise deny
+        return False
 
     @staticmethod
     def update_photo(photo_id: int, updates: dict) -> bool:
@@ -209,6 +253,32 @@ class PhotoService:
         return False
 
     @staticmethod
+    def update_photo_for_user(user_id: int, photo_id: int, updates: dict) -> bool:
+        """
+        Update a photo if the given user owns it.
+
+        Parameters:
+            user_id: The ID of the requesting user.
+            photo_id: The ID of the photo to update.
+            updates: Fields to update.
+
+        Returns:
+            bool: True if updated, False otherwise.
+        """
+        photo = PhotoModel.get_by_id(photo_id)
+        if not photo:
+            return False
+        from db.models import AlbumModel
+
+        album = (
+            AlbumModel.get_by_id(photo.get("albumID")) if photo.get("albumID") else None
+        )
+        owner_id = album["creatorID"] if album else None
+        if owner_id == user_id:
+            return PhotoModel.update({**photo, **updates})
+        return False
+
+    @staticmethod
     def count_photos_by_user(user_id: int) -> int:
         """
         Count all photos uploaded by a specific user.
@@ -219,7 +289,7 @@ class PhotoService:
         Returns:
             int: The number of photos the user has uploaded.
         """
-        return PhotoModel.count_by_user(user_id)
+        return len(PhotoService.get_photos_by_user(user_id))
 
     @staticmethod
     def like_photo(user_id: int, photo_id: int) -> bool:
@@ -234,6 +304,28 @@ class PhotoService:
         """
 
         return LikeModel.like(user_id, photo_id) is not None
+
+    @staticmethod
+    def add_rating(user_id: int, photo_id: int, rating_value: int) -> dict:
+        """
+        Add a rating (1-5) to a photo by a user.
+
+        Parameters:
+            user_id (int): The ID of the user adding the rating.
+            photo_id (int): The ID of the photo being rated.
+            rating_value (int): The rating value (1-5).
+        Returns:
+            dict: The created rating as a dictionary.
+        """
+        return RatingModel.create(
+            user_id=user_id, photo_id=photo_id, rating_value=rating_value
+        )
+
+    @staticmethod
+    def get_average_rating(photo_id: int) -> float:
+        from db.models.rating import RatingModel
+
+        return RatingModel.get_average_for_photo(photo_id) or 0.0
 
     @staticmethod
     def unlike_photo(user_id: int, photo_id: int) -> bool:
@@ -339,7 +431,8 @@ class PhotoService:
     @staticmethod
     def delete_category_with_photos(name: str) -> Tuple[bool, str]:
         """
-        Delete a category and cascade-delete all photos in it.
+        Delete a category. Photos in the category are automatically removed
+        by the database CASCADE on photos.categoryID.
 
         Parameters:
             name: The name of the category to delete.
@@ -348,14 +441,8 @@ class PhotoService:
             Tuple of (success, message)
         """
         categories = CategoryModel.get_all()
-        photos = PhotoModel.get_all()
         for cat in categories:
             if cat["category"] == name:
-                photo_ids = [
-                    p["photoID"] for p in photos if p["categoryID"] == cat["categoryID"]
-                ]
-                if photo_ids:
-                    PhotoModel.delete_many(*photo_ids)
                 CategoryModel.delete(name)
                 return True, f"{name} was deleted successfully"
         return False, "Category not found"

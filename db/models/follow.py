@@ -1,6 +1,14 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    UniqueConstraint,
+)
 
 from db.engine import Base, SessionLocal
 
@@ -12,9 +20,27 @@ class FollowModel(Base):
 
     __tablename__: str = "follows"
 
-    followID: int = Column(Integer, primary_key=True, autoincrement=True)
-    followerID: int = Column(Integer, ForeignKey("users.userID"), nullable=False)
-    followedID: int = Column(Integer, ForeignKey("users.userID"), nullable=False)
+    __table_args__ = (
+        UniqueConstraint("followerID", "followedID", name="uq_follow_pair"),
+        CheckConstraint("followerID != followedID", name="ck_follows_no_self_follow"),
+        CheckConstraint("id > 0 AND id < 10000000", name="ck_follows_id_range"),
+        CheckConstraint(
+            "followerID > 0 AND followerID < 10000000", name="ck_follows_follower_range"
+        ),
+        CheckConstraint(
+            "followedID > 0 AND followedID < 10000000", name="ck_follows_followed_range"
+        ),
+        Index("ix_follows_followedID", "followedID"),
+        Index("ix_follows_followerID", "followerID"),
+    )
+
+    id: int = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    followerID: int = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    followedID: int = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     createdAt: DateTime = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -22,10 +48,6 @@ class FollowModel(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
-    )
-
-    __table_args__ = (
-        UniqueConstraint("followerID", "followedID", name="uq_follow_pair"),
     )
 
     def to_dict(self) -> dict:
@@ -37,7 +59,7 @@ class FollowModel(Base):
         """
 
         return {
-            "followID": self.followID,
+            "id": self.id,
             "followerID": self.followerID,
             "followedID": self.followedID,
             "createdAt": self.createdAt,

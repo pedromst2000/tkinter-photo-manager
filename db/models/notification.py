@@ -1,6 +1,15 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+)
 
 from db.engine import Base, SessionLocal
 
@@ -12,18 +21,56 @@ class NotificationModel(Base):
 
     __tablename__: str = "notifications"
 
-    notID: int = Column(Integer, primary_key=True, autoincrement=True)
-    type: str = Column(String, nullable=False)
-    message: str = Column(String, nullable=False)
+    __table_args__ = (
+        CheckConstraint("id > 0 AND id < 10000000", name="ck_notifications_id_range"),
+        CheckConstraint(
+            "userID > 0 AND userID < 10000000", name="ck_notifications_userID_range"
+        ),
+        CheckConstraint(
+            "(senderID IS NULL) OR (senderID > 0 AND senderID < 10000000)",
+            name="ck_notifications_senderID_null_or_range",
+        ),
+        CheckConstraint(
+            "length(trim(type)) > 0", name="ck_notifications_type_not_empty"
+        ),
+        CheckConstraint(
+            "length(trim(message)) > 0", name="ck_notifications_message_not_empty"
+        ),
+        # at most one reference column may be non-null (photo, comment or album)
+        CheckConstraint(
+            "((photoID IS NOT NULL) + (commentID IS NOT NULL) + (albumID IS NOT NULL)) <= 1",
+            name="ck_notifications_one_reference",
+        ),
+        # performance indexes for common queries
+        Index("ix_notifications_userid_createdat", "userID", "createdAt"),
+        Index("ix_notifications_userid_isread", "userID", "isRead"),
+    )
+
+    id: int = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    # link 'type' to notification_settings.type to enforce allowed types
+    type: str = Column(
+        String(50),
+        ForeignKey("notification_settings.type", ondelete="CASCADE"),
+        nullable=False,
+    )
+    message: str = Column(String(255), nullable=False)
     userID: int = Column(
-        Integer, ForeignKey("users.userID"), nullable=False
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )  # recipient
     senderID: int = Column(
-        Integer, ForeignKey("users.userID"), nullable=True
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )  # who triggered it
-    referenceID: int = Column(Integer, nullable=True)  # related resource PK
-    referenceType: str = Column(String, nullable=True)  # 'photo' | 'album' | 'comment'
-    isRead: bool = Column(Boolean, default=False)
+    # explicit nullable FKs for referenced target types (one-of)
+    photoID: int = Column(
+        Integer, ForeignKey("photos.id", ondelete="CASCADE"), nullable=True
+    )
+    commentID: int = Column(
+        Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=True
+    )
+    albumID: int = Column(
+        Integer, ForeignKey("albuns.id", ondelete="CASCADE"), nullable=True
+    )
+    isRead: bool = Column(Boolean, default=False, nullable=False)
     createdAt: DateTime = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -41,13 +88,14 @@ class NotificationModel(Base):
             dict: A dictionary representation of the NotificationModel instance.
         """
         return {
-            "notID": self.notID,
+            "id": self.id,
             "type": self.type,
             "message": self.message,
             "userID": self.userID,
             "senderID": self.senderID,
-            "referenceID": self.referenceID,
-            "referenceType": self.referenceType,
+            "photoID": self.photoID,
+            "commentID": self.commentID,
+            "albumID": self.albumID,
             "isRead": self.isRead,
             "createdAt": self.createdAt,
             "updatedAt": self.updatedAt,
@@ -111,7 +159,7 @@ class NotificationModel(Base):
         """
         with SessionLocal() as session:
             with session.begin():
-                n = session.query(cls).filter_by(notID=notID).first()
+                n = session.query(cls).filter_by(id=notID).first()
                 if n:
                     n.isRead = True
                     return True
@@ -138,14 +186,15 @@ class NotificationModel(Base):
         message: str,
         user_id: int,
         sender_id: int = None,
-        reference_id: int = None,
-        reference_type: str = None,
+        photo_id: int = None,
+        comment_id: int = None,
+        album_id: int = None,
     ) -> dict:
         """
         Create a new notification.
 
         Parameters:
-            type (str): Notification type ('follow', 'like', 'comment', 'reply', 'new_photo', 'new_album').
+            type (str): Notification type ('follow', 'like', 'comment', 'new_photo', 'new_album').
             message (str): Human-readable notification message.
             user_id (int): The recipient user ID.
             sender_id (int, optional): Who triggered the notification.
@@ -155,15 +204,41 @@ class NotificationModel(Base):
         Returns:
             dict: A dictionary representation of the newly created notification.
         """
+        # application-level validation: trim and ensure non-empty
+        t = type.strip() if type is not None else ""
+        m = message.strip() if message is not None else ""
+        if not t:
+            raise ValueError("Notification type must not be empty")
+        if not m:
+            raise ValueError("Notification message must not be empty")
+        if len(t) > 50:
+            raise ValueError("Notification type must be at most 50 characters")
+        if len(m) > 255:
+            raise ValueError("Notification message must be at most 255 characters")
+
+        # enforce at-most-one reference at application level as well
+        refs_given = sum(1 for v in (photo_id, comment_id, album_id) if v is not None)
+        if refs_given > 1:
+            raise ValueError(
+                "At most one of photo_id, comment_id or album_id may be provided"
+            )
+
+        # ensure type exists in notification settings
+        from db.models.notification_settings import NotificationSettingsModel
+
+        if not NotificationSettingsModel.get_by_type(t):
+            raise ValueError(f"Unknown notification type: {t}")
+
         with SessionLocal() as session:
             with session.begin():
                 obj = cls(
-                    type=type,
-                    message=message,
+                    type=t,
+                    message=m,
                     userID=user_id,
                     senderID=sender_id,
-                    referenceID=reference_id,
-                    referenceType=reference_type,
+                    photoID=photo_id,
+                    commentID=comment_id,
+                    albumID=album_id,
                 )
                 session.add(obj)
                 session.flush()

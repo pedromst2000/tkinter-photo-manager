@@ -1,5 +1,6 @@
 from typing import List, Tuple
 
+from services.auth_service import AuthService
 from services.photo_service import PhotoService
 from services.user_service import UserService
 from state.session import session
@@ -39,8 +40,6 @@ class AdminController:
         Returns:
             bool: True if the format is valid, False otherwise.
         """
-        from services.auth_service import AuthService
-
         return AuthService.validate_email_format(email)
 
     @staticmethod
@@ -86,14 +85,12 @@ class AdminController:
         if not username or not new_role:
             return False, "Username and role are required"
 
-        valid_roles = ["regular", "unsigned"]
-        if new_role not in valid_roles:
-            return False, f"Invalid role. Must be one of: {', '.join(valid_roles)}"
-
-        if UserService.change_role(username, new_role):
-            return True, f"User {username} role changed to {new_role}"
-
-        return False, f"Failed to change role for {username}"
+        try:
+            if UserService.change_role(username, new_role):
+                return True, f"User {username} role changed to {new_role}"
+            return False, f"Failed to change role for {username}"
+        except ValueError as e:
+            return False, str(e)
 
     @staticmethod
     def block_user(username: str) -> Tuple[bool, str]:
@@ -116,10 +113,12 @@ class AdminController:
         if username == session.username:
             return False, "You cannot block yourself"
 
-        if UserService.block_user(username):
-            return True, f"User {username} has been blocked"
-
-        return False, f"Failed to block user {username}"
+        try:
+            if UserService.block_user(username):
+                return True, f"User {username} has been blocked"
+            return False, f"Failed to block user {username}"
+        except ValueError as e:
+            return False, str(e)
 
     @staticmethod
     def unblock_user(username: str) -> Tuple[bool, str]:
@@ -138,10 +137,12 @@ class AdminController:
         if not username:
             return False, "Username is required"
 
-        if UserService.unblock_user(username):
-            return True, f"User {username} has been unblocked"
-
-        return False, f"Failed to unblock user {username}"
+        try:
+            if UserService.unblock_user(username):
+                return True, f"User {username} has been unblocked"
+            return False, f"Failed to unblock user {username}"
+        except ValueError as e:
+            return False, str(e)
 
     @staticmethod
     def delete_user(user_id: int) -> Tuple[bool, str]:

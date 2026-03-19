@@ -123,7 +123,6 @@ class PhotoController:
         try:
             PhotoService.create_photo(
                 image_path=image_path,
-                user_id=session.user_id,
                 album_id=album_id,
                 category_id=category_id,
                 description=description,
@@ -147,18 +146,10 @@ class PhotoController:
         if not session.is_authenticated:
             return False, "You must be logged in to delete photos"
 
-        # Verify ownership
-        photo = PhotoService.get_photo_by_id(photo_id)
-        if not photo:
-            return False, "Photo not found"
-
-        if photo["userID"] != session.user_id and not session.is_admin:
-            return False, "You can only delete your own photos"
-
-        if PhotoService.delete_photo(photo_id):
+        # Delegate ownership check and deletion to service (business logic)
+        if PhotoService.delete_photo_for_user(session.user_id, photo_id):
             return True, "Photo deleted successfully"
-
-        return False, "Failed to delete photo"
+        return False, "Failed to delete photo or insufficient permissions"
 
     @staticmethod
     def update_photo(photo_id: int, updates: dict) -> Tuple[bool, str]:
@@ -175,18 +166,10 @@ class PhotoController:
         if not session.is_authenticated:
             return False, "You must be logged in to update photos"
 
-        # Verify ownership
-        photo = PhotoService.get_photo_by_id(photo_id)
-        if not photo:
-            return False, "Photo not found"
-
-        if photo["userID"] != session.user_id and not session.is_admin:
-            return False, "You can only update your own photos"
-
-        if PhotoService.update_photo(photo_id, updates):
+        # Delegate ownership check and update to service (business logic)
+        if PhotoService.update_photo_for_user(session.user_id, photo_id, updates):
             return True, "Photo updated successfully"
-
-        return False, "Failed to update photo"
+        return False, "Failed to update photo or insufficient permissions"
 
     @staticmethod
     def like_photo(photo_id: int) -> Tuple[bool, str]:
@@ -220,6 +203,25 @@ class PhotoController:
         if PhotoService.unlike_photo(session.user_id, photo_id):
             return True, "Photo unliked"
         return False, "You have not liked this photo"
+
+    @staticmethod
+    def rate_photo(photo_id: int, rating_value: int) -> Tuple[bool, str]:
+        """
+        Rate a photo (1-5) by the current user.
+
+        Parameters:
+            photo_id: The ID of the photo to rate.
+            rating_value: The rating value (1-5).
+        Returns:
+            Tuple of (success, message)
+        """
+        if not session.is_authenticated:
+            return False, "You must be logged in to rate photos"
+        try:
+            PhotoService.add_rating(session.user_id, photo_id, rating_value)
+            return True, "Rating submitted"
+        except Exception as e:
+            return False, f"Failed to submit rating: {e}"
 
     @staticmethod
     def has_liked(photo_id: int) -> bool:

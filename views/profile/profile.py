@@ -2,8 +2,7 @@ import tkinter as tk
 
 from PIL import Image, ImageTk
 
-from services.photo_service import PhotoService
-from services.user_service import UserService
+from controllers.profile_controller import ProfileController
 from state.session import session
 from styles.colors import colors
 from styles.fonts import quickSandBold, quickSandRegular
@@ -34,8 +33,9 @@ def profileWindow():
     userID: int = session.user_id
     userPayload: dict = session.user_data
 
-    follower_count: int = UserService.count_followers(userID)
-    photo_count: int = PhotoService.count_photos_by_user(userID)
+    stats: dict = ProfileController.get_profile_stats(userID)
+    follower_count: int = stats["follower_count"]
+    photo_count: int = stats["photo_count"]
 
     # centering the window
     profileWindowWidth: int = 1000  # width of the window

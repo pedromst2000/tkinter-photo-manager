@@ -56,15 +56,25 @@ class AuthService:
             password.encode("utf-8"), bcrypt.gensalt()
         ).decode("utf-8")
 
-        # Create user in database
-        return UserModel.create(
+        from db.models import RoleModel
+
+        unsigned_role = RoleModel.get_by_name("unsigned")
+        # Create user in database (avatar is stored in avatars table)
+        user = UserModel.create(
             username=username,
             email=email,
             password=hashed_password,
-            avatar="assets/images/profile_avatars/default_avatar.jpg",
-            role="unsigned",
+            roleID=unsigned_role["id"] if unsigned_role else None,
             isBlocked=False,
         )
+        # create default avatar entry
+        try:
+            UserModel.update_avatar(
+                user["id"], "assets/images/profile_avatars/default_avatar.jpg"
+            )
+        except Exception:
+            pass
+        return user
 
     @staticmethod
     def validate_email_format(email: str) -> bool:
@@ -136,17 +146,29 @@ class AuthService:
         return not UserModel.username_exists(username)
 
     @staticmethod
-    def change_password(user_id: int, new_password: str) -> bool:
+    def change_password(user_id: int, current_password: str, new_password: str) -> bool:
         """
-        Change a user's password.
+        Change a user's password after verifying the current password.
 
         Parameters:
             user_id: The ID of the user.
+            current_password: The user's current plaintext password to verify.
             new_password: The new plaintext password to be hashed.
 
         Returns:
             bool: True if password was changed successfully, False otherwise.
+
+        Raises:
+            ValueError: If new_password does not meet policy requirements.
         """
+        # business-rule: password policy
+        if len(new_password) < 6:
+            raise ValueError("Password must be at least 6 characters")
+
+        # verify current password
+        if not AuthService.verify_password(user_id, current_password):
+            return False
+
         hashed: str = bcrypt.hashpw(
             new_password.encode("utf-8"), bcrypt.gensalt()
         ).decode("utf-8")

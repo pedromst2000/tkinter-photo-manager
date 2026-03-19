@@ -1,6 +1,16 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+)
+from sqlalchemy.orm import relationship
 
 from db.engine import Base, SessionLocal
 
@@ -12,15 +22,14 @@ class UserModel(Base):
 
     __tablename__: str = "users"
 
-    userID: int = Column(Integer, primary_key=True, autoincrement=True)
-    username: str = Column(String, unique=True, nullable=False)
-    email: str = Column(String, unique=True, nullable=False)
-    password: str = Column(String, nullable=False)
-    avatar: str = Column(
-        String, default="assets/images/profile_avatars/default_avatar.jpg"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    username: str = Column(String(125), unique=True, nullable=False)
+    email: str = Column(String(125), unique=True, nullable=False)
+    password: str = Column(String(125), nullable=False)
+
+    roleID: int = Column(
+        Integer, ForeignKey("roles.id", ondelete="SET NULL"), nullable=True
     )
-    role: str = Column(String, default="unsigned")  # 'admin' | 'regular' | 'unsigned'
-    roleID: int = Column(Integer, ForeignKey("roles.roleID"), nullable=True)
     isBlocked: bool = Column(Boolean, default=False)
     createdAt: DateTime = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -31,6 +40,57 @@ class UserModel(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+    # ORM relationships — passive_deletes=True relies on DB-level FK CASCADE
+    avatar_rel = relationship(
+        "AvatarModel", uselist=False, cascade="all, delete-orphan", passive_deletes=True
+    )
+    albums_rel = relationship(
+        "AlbumModel", cascade="all, delete-orphan", passive_deletes=True
+    )
+    contacts_rel = relationship(
+        "ContactModel", cascade="all, delete-orphan", passive_deletes=True
+    )
+    # child rows with two parent FKs: DB-level CASCADE handles delete, no delete-orphan here
+    likes_rel = relationship("LikeModel", passive_deletes=True)
+    ratings_rel = relationship("RatingModel", passive_deletes=True)
+    comments_rel = relationship(
+        "CommentModel", foreign_keys="[CommentModel.authorID]", passive_deletes=True
+    )
+    favorites_rel = relationship("FavoriteModel", passive_deletes=True)
+    # self-referential follows: foreign_keys required because both FKs point to users.id
+    following_rel = relationship(
+        "FollowModel", foreign_keys="[FollowModel.followerID]", passive_deletes=True
+    )
+
+    @property
+    def following(self):
+        return self.following_rel
+
+    followers_rel = relationship(
+        "FollowModel", foreign_keys="[FollowModel.followedID]", passive_deletes=True
+    )
+
+    @property
+    def followers(self):
+        return self.followers_rel
+
+    @property
+    def role(self) -> str:
+        """
+        Get the user's role as a string.
+
+        Returns:
+            str: The user's role ('admin', 'regular', 'unsigned').
+        """
+
+        if self.roleID is None:
+            return "unsigned"
+        from db.models.role import RoleModel
+
+        with SessionLocal() as session:
+            r = session.query(RoleModel).filter_by(id=self.roleID).first()
+            return r.role if r else "unsigned"
+
     def to_dict(self) -> dict:
         """
         Convert the UserModel instance to a dictionary.
@@ -38,12 +98,25 @@ class UserModel(Base):
         Returns:
             dict: A dictionary representation of the UserModel instance.
         """
+        # include avatar via related AvatarModel (lazy import to avoid circular deps)
+        avatar_path = None
+        try:
+            from .avatar import AvatarModel
+
+            avatar = AvatarModel.get_for_user(self.id)
+            avatar_path = (
+                avatar["avatar"]
+                if avatar
+                else "assets/images/profile_avatars/default_avatar.jpg"
+            )
+        except Exception:
+            avatar_path = "assets/images/profile_avatars/default_avatar.jpg"
         return {
-            "userID": self.userID,
+            "id": self.id,
             "username": self.username,
             "email": self.email,
             "password": self.password,
-            "avatar": self.avatar,
+            "avatar": avatar_path,
             "role": self.role,
             "roleID": self.roleID,
             "isBlocked": self.isBlocked,
@@ -74,7 +147,7 @@ class UserModel(Base):
             dict | None: A dictionary representation of the user if found, otherwise None.
         """
         with SessionLocal() as session:
-            u = session.query(cls).filter_by(userID=userID).first()
+            u = session.query(cls).filter_by(id=userID).first()
             return u.to_dict() if u else None
 
     @classmethod
@@ -83,8 +156,6 @@ class UserModel(Base):
         username: str,
         email: str,
         password: str,
-        avatar: str = "assets/images/profile_avatars/default_avatar.jpg",
-        role: str = "unsigned",
         roleID: int = None,
         isBlocked: bool = False,
     ) -> dict:
@@ -96,7 +167,6 @@ class UserModel(Base):
             email (str): The email address of the user.
             password (str): The password of the user.
             avatar (str, optional): The avatar image path.
-            role (str, optional): The role of the user.
             roleID (int, optional): The ID of the user's role.
             isBlocked (bool, optional): Whether the user is blocked.
 
@@ -109,8 +179,6 @@ class UserModel(Base):
                     username=username,
                     email=email,
                     password=password,
-                    avatar=avatar,
-                    role=role,
                     roleID=roleID,
                     isBlocked=isBlocked,
                 )
@@ -131,12 +199,12 @@ class UserModel(Base):
         """
         with SessionLocal() as session:
             with session.begin():
-                u: UserModel = (
-                    session.query(cls).filter_by(userID=updated["userID"]).first()
-                )
+                u: UserModel = session.query(cls).filter_by(id=updated["id"]).first()
                 if u:
+                    ALLOWED = {"username", "email", "password", "roleID", "isBlocked"}
                     for key, value in updated.items():
-                        setattr(u, key, value)
+                        if key in ALLOWED:
+                            setattr(u, key, value)
         return updated
 
     @classmethod
@@ -208,8 +276,31 @@ class UserModel(Base):
         Returns:
             list: A list of dictionaries representing users with that role.
         """
+        from db.models.role import RoleModel
+
         with SessionLocal() as session:
-            return [u.to_dict() for u in session.query(cls).filter_by(role=role).all()]
+            role_row = session.query(RoleModel).filter_by(role=role).first()
+            if not role_row:
+                return []
+            return [
+                u.to_dict()
+                for u in session.query(cls).filter_by(roleID=role_row.id).all()
+            ]
+
+    __table_args__ = (
+        CheckConstraint("id > 0 AND id < 10000000", name="ck_users_id_range"),
+        CheckConstraint(
+            "(roleID IS NULL) OR (roleID > 0 AND roleID < 10000000)",
+            name="ck_users_roleID_null_or_range",
+        ),
+        CheckConstraint(
+            "length(trim(username)) > 0", name="ck_users_username_not_empty"
+        ),
+        CheckConstraint("length(username) <= 125", name="ck_users_username_maxlen"),
+        CheckConstraint("length(trim(email)) > 0", name="ck_users_email_not_empty"),
+        CheckConstraint("length(email) <= 125", name="ck_users_email_maxlen"),
+        Index("ix_users_roleID", "roleID"),
+    )
 
     @classmethod
     def get_blocked_users(cls) -> list:
@@ -236,13 +327,16 @@ class UserModel(Base):
         Returns:
             bool: True if updated successfully, False otherwise.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                u = session.query(cls).filter_by(userID=user_id).first()
-                if u:
-                    u.avatar = avatar_path
-                    return True
-        return False
+        # create a new AvatarModel row and mark it primary
+        try:
+            from .avatar import AvatarModel
+
+            AvatarModel.create(
+                user_id=user_id, avatar_path=avatar_path, is_primary=True
+            )
+            return True
+        except Exception:
+            return False
 
     @classmethod
     def update_password(cls, user_id: int, hashed_password: str) -> bool:
@@ -258,7 +352,7 @@ class UserModel(Base):
         """
         with SessionLocal() as session:
             with session.begin():
-                u = session.query(cls).filter_by(userID=user_id).first()
+                u = session.query(cls).filter_by(id=user_id).first()
                 if u:
                     u.password = hashed_password
                     return True
@@ -267,20 +361,25 @@ class UserModel(Base):
     @classmethod
     def update_role(cls, user_id: int, role: str) -> bool:
         """
-        Update a user's role.
+        Update a user's role by role name.
 
         Parameters:
             user_id (int): The user's ID.
-            role (str): The new role.
+            role (str): The new role name ('admin', 'regular', 'unsigned').
 
         Returns:
             bool: True if updated successfully, False otherwise.
         """
+        from db.models.role import RoleModel
+
         with SessionLocal() as session:
             with session.begin():
-                u = session.query(cls).filter_by(userID=user_id).first()
+                role_row = session.query(RoleModel).filter_by(role=role).first()
+                if not role_row:
+                    return False
+                u = session.query(cls).filter_by(id=user_id).first()
                 if u:
-                    u.role = role
+                    u.roleID = role_row.id
                     return True
         return False
 
@@ -298,7 +397,7 @@ class UserModel(Base):
         """
         with SessionLocal() as session:
             with session.begin():
-                u = session.query(cls).filter_by(userID=user_id).first()
+                u = session.query(cls).filter_by(id=user_id).first()
                 if u:
                     u.isBlocked = is_blocked
                     return True
@@ -317,7 +416,7 @@ class UserModel(Base):
         """
         with SessionLocal() as session:
             with session.begin():
-                u = session.query(cls).filter_by(userID=user_id).first()
+                u = session.query(cls).filter_by(id=user_id).first()
                 if u:
                     session.delete(u)
                     return True

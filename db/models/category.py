@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import CheckConstraint, Column, DateTime, Integer, String
+from sqlalchemy.orm import relationship
 
 from db.engine import Base, SessionLocal
 
@@ -12,8 +13,16 @@ class CategoryModel(Base):
 
     __tablename__: str = "categories"
 
-    categoryID: int = Column(Integer, primary_key=True, autoincrement=True)
-    category: str = Column(String, unique=True, nullable=False)
+    __table_args__ = (
+        CheckConstraint("id > 0 AND id < 10000000", name="ck_categories_id_range"),
+        CheckConstraint(
+            "length(trim(category)) > 0", name="ck_categories_name_not_empty"
+        ),
+        CheckConstraint("length(category) <= 25", name="ck_categories_name_maxlen"),
+    )
+
+    id: int = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    category: str = Column(String(25), unique=True, nullable=False)
     createdAt: DateTime = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -23,6 +32,15 @@ class CategoryModel(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+    # when a category is deleted, its photos are deleted too (photo.categoryID ondelete=CASCADE)
+    photos_rel = relationship(
+        "PhotoModel", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+    @property
+    def photos(self):
+        return self.photos_rel
+
     def to_dict(self) -> dict:
         """
         Convert the CategoryModel instance to a dictionary.
@@ -31,7 +49,7 @@ class CategoryModel(Base):
             dict: A dictionary representation of the CategoryModel instance.
         """
         return {
-            "categoryID": self.categoryID,
+            "id": self.id,
             "category": self.category,
             "createdAt": self.createdAt,
             "updatedAt": self.updatedAt,
@@ -59,9 +77,16 @@ class CategoryModel(Base):
         Returns:
             dict: A dictionary representation of the newly created category.
         """
+        # application-level validation: trim and ensure non-empty and within length
+        trimmed = category.strip() if category is not None else ""
+        if not trimmed:
+            raise ValueError("Category name must not be empty")
+        if len(trimmed) > 25:
+            raise ValueError("Category name must be at most 25 characters")
+
         with SessionLocal() as session:
             with session.begin():
-                obj: CategoryModel = cls(category=category)
+                obj: CategoryModel = cls(category=trimmed)
                 session.add(obj)
                 session.flush()
                 return obj.to_dict()
@@ -76,6 +101,9 @@ class CategoryModel(Base):
         Returns:
             None
         """
+        trimmed = category.strip() if category is not None else ""
+        if not trimmed:
+            return
         with SessionLocal() as session:
             with session.begin():
-                session.query(cls).filter_by(category=category).delete()
+                session.query(cls).filter_by(category=trimmed).delete()

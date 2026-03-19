@@ -95,18 +95,13 @@ class AlbumController:
         if not new_name or not new_name.strip():
             return False, "New album name is required"
 
-        # Verify ownership
-        album = AlbumService.get_album_by_id(album_id)
-        if not album:
-            return False, "Album not found"
-
-        if album["creatorID"] != session.user_id and not session.is_admin:
-            return False, "You can only rename your own albums"
-
-        if AlbumService.rename_album(album_id, new_name.strip()):
-            return True, f"Album renamed to '{new_name}'"
-
-        return False, "Failed to rename album"
+        try:
+            AlbumService.rename_album_for_user(
+                session.user_id, album_id, new_name, session.is_admin
+            )
+            return True, f"Album renamed to '{new_name.strip()}'"
+        except ValueError as e:
+            return False, str(e)
 
     @staticmethod
     def delete_album(album_id: int) -> Tuple[bool, str]:
@@ -122,18 +117,14 @@ class AlbumController:
         if not session.is_authenticated:
             return False, "You must be logged in to delete an album"
 
-        # Verify ownership
-        album = AlbumService.get_album_by_id(album_id)
-        if not album:
-            return False, "Album not found"
-
-        if album["creatorID"] != session.user_id and not session.is_admin:
-            return False, "You can only delete your own albums"
-
-        if AlbumService.delete_album(album_id):
-            return True, "Album deleted successfully"
-
-        return False, "Failed to delete album"
+        try:
+            if AlbumService.delete_album_for_user(
+                session.user_id, album_id, session.is_admin
+            ):
+                return True, "Album deleted successfully"
+            return False, "Failed to delete album"
+        except ValueError as e:
+            return False, str(e)
 
     @staticmethod
     def get_album_id_by_name(album_name: str, user_id: int = None) -> Optional[int]:

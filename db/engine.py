@@ -96,6 +96,8 @@ def check_db() -> tuple:
                 "categories",
                 "albuns",
                 "photos",
+                "photo_images",
+                "ratings",
                 "comments",
                 "favorites",
                 "contacts",

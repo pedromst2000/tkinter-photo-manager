@@ -61,7 +61,7 @@ class UserService:
             int or None: The user ID if found, None otherwise.
         """
         user = UserModel.get_by_email(email)
-        return user["userID"] if user else None
+        return user["id"] if user else None
 
     @staticmethod
     def get_all_users() -> list:
@@ -84,7 +84,7 @@ class UserService:
         """
         return [
             {
-                "userID": user["userID"],
+                "id": user["id"],
                 "username": user["username"],
                 "email": user["email"],
                 "role": user["role"],
@@ -121,10 +121,17 @@ class UserService:
 
         Returns:
             bool: True if role was changed successfully, False otherwise.
+
+        Raises:
+            ValueError: If new_role is not a valid assignable role.
         """
+        VALID_ROLES = ["regular", "unsigned"]
+        if new_role not in VALID_ROLES:
+            raise ValueError(f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
+
         user = UserModel.get_by_username(username)
         if user:
-            return UserModel.update_role(user["userID"], new_role)
+            return UserModel.update_role(user["id"], new_role)
         return False
 
     @staticmethod
@@ -139,9 +146,11 @@ class UserService:
             bool: True if blocked successfully, False otherwise.
         """
         user = UserModel.get_by_username(username)
-        if user:
-            return UserModel.set_blocked(user["userID"], True)
-        return False
+        if not user:
+            return False
+        if user["isBlocked"]:
+            raise ValueError(f'"{username}" is already blocked.')
+        return UserModel.set_blocked(user["id"], True)
 
     @staticmethod
     def unblock_user(username: str) -> bool:
@@ -155,9 +164,11 @@ class UserService:
             bool: True if unblocked successfully, False otherwise.
         """
         user = UserModel.get_by_username(username)
-        if user:
-            return UserModel.set_blocked(user["userID"], False)
-        return False
+        if not user:
+            return False
+        if not user["isBlocked"]:
+            raise ValueError(f'"{username}" is already unblocked.')
+        return UserModel.set_blocked(user["id"], False)
 
     @staticmethod
     def is_user_blocked(user_id: int) -> bool:
@@ -237,7 +248,7 @@ class UserService:
             return []
         return [
             {
-                "contactID": c["contactID"],
+                "id": c["id"],
                 "title": c["title"],
                 "message": c["message"],
                 "username": (UserModel.get_by_id(c["userID"]) or {}).get(
@@ -343,3 +354,18 @@ class UserService:
             int: Following count.
         """
         return FollowModel.count_following(user_id)
+
+    @staticmethod
+    def create_contact(title: str, message: str, user_id: int) -> dict:
+        """
+        Create a contact message from a user to the admin.
+
+        Parameters:
+            title: Subject of the message.
+            message: Body of the message.
+            user_id: The ID of the user sending the message.
+
+        Returns:
+            dict: The created contact entry.
+        """
+        return ContactModel.create(title=title, message=message, userID=user_id)

@@ -1,6 +1,15 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+)
+from sqlalchemy.orm import relationship
 
 from db.engine import Base, SessionLocal
 
@@ -12,9 +21,35 @@ class PhotoModel(Base):
 
     __tablename__: str = "photos"
 
-    photoID: int = Column(Integer, primary_key=True, autoincrement=True)
-    description: str = Column(String, nullable=False)
+    __table_args__ = (
+        CheckConstraint("id > 0 AND id < 10000000", name="ck_photos_id_range"),
+        CheckConstraint(
+            "categoryID > 0 AND categoryID < 10000000",
+            name="ck_photos_categoryID_range",
+        ),
+        CheckConstraint(
+            "(albumID IS NULL) OR (albumID > 0 AND albumID < 10000000)",
+            name="ck_photos_albumID_null_or_range",
+        ),
+        CheckConstraint(
+            "length(trim(description)) > 0", name="ck_photos_description_not_empty"
+        ),
+        CheckConstraint(
+            "length(description) <= 255", name="ck_photos_description_maxlen"
+        ),
+        Index("ix_photos_albumID", "albumID"),
+        Index("ix_photos_categoryID", "categoryID"),
+    )
+
+    id: int = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    description: str = Column(String(255), nullable=False)
     publishedDate: DateTime = Column(DateTime(timezone=True), nullable=False)
+    categoryID: int = Column(
+        Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False
+    )
+    albumID: int = Column(
+        Integer, ForeignKey("albuns.id", ondelete="CASCADE"), nullable=True
+    )
     createdAt: DateTime = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -23,14 +58,39 @@ class PhotoModel(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
-    image: str = Column(String, nullable=False)
-    views: int = Column(Integer, default=0)
-    rating: float = Column(Float, default=0.0)
-    categoryID: int = Column(
-        Integer, ForeignKey("categories.categoryID"), nullable=False
+
+    # ORM relationships — cascade photo deletion to all child rows
+    images_rel = relationship(
+        "PhotoImageModel", cascade="all, delete-orphan", passive_deletes=True
     )
-    albumID: int = Column(Integer, ForeignKey("albuns.albumID"), nullable=True)
-    userID: int = Column(Integer, ForeignKey("users.userID"), nullable=True)
+
+    @property
+    def images(self):
+        return self.images_rel
+
+    ratings_rel = relationship(
+        "RatingModel", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+    @property
+    def ratings(self):
+        return self.ratings_rel
+
+    comments_rel = relationship(
+        "CommentModel", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+    @property
+    def comments(self):
+        return self.comments_rel
+
+    likes_rel = relationship(
+        "LikeModel", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+    @property
+    def likes(self):
+        return self.likes_rel
 
     def to_dict(self) -> dict:
         """
@@ -40,15 +100,12 @@ class PhotoModel(Base):
             dict: A dictionary representation of the PhotoModel instance.
         """
         return {
-            "photoID": self.photoID,
+            "id": self.id,
             "description": self.description,
             "publishedDate": self.publishedDate,
-            "image": self.image,
-            "views": self.views,
-            "rating": self.rating,
+            "rating": 0.0,
             "categoryID": self.categoryID,
             "albumID": self.albumID,
-            "userID": self.userID,
             "createdAt": self.createdAt,
             "updatedAt": self.updatedAt,
         }
@@ -69,12 +126,8 @@ class PhotoModel(Base):
         cls,
         description: str,
         publishedDate,
-        image: str,
         categoryID: int,
         albumID: int = None,
-        userID: int = None,
-        views: int = 0,
-        rating: float = 0.0,
     ) -> dict:
         """
         Create a new photo in the database.
@@ -82,13 +135,9 @@ class PhotoModel(Base):
         Parameters:
             description (str): The description of the photo.
             publishedDate (datetime): The date and time when the photo was published.
-            image (str): The file path or URL of the photo.
             categoryID (int): The ID of the category the photo belongs to.
             albumID (int, optional): The ID of the album the photo belongs to. Defaults to None.
-            userID (int, optional): The ID of the user who uploaded the photo. Defaults to None.
-            likes (int, optional): The number of likes the photo has. Defaults to 0.
-            views (int, optional): The number of views the photo has. Defaults to 0.
-            rating (float, optional): The average rating of the photo. Defaults to 0.0.
+            Note: image data is stored in `photo_images` table; ratings are stored in `ratings`.
         Returns:
             dict: A dictionary representation of the newly created photo.
         """
@@ -97,12 +146,8 @@ class PhotoModel(Base):
                 obj: PhotoModel = cls(
                     description=description,
                     publishedDate=publishedDate,
-                    image=image,
                     categoryID=categoryID,
                     albumID=albumID,
-                    userID=userID,
-                    views=views,
-                    rating=rating,
                 )
                 session.add(obj)
                 session.flush()
@@ -120,7 +165,9 @@ class PhotoModel(Base):
         """
         with SessionLocal() as session:
             with session.begin():
-                session.query(cls).filter_by(photoID=photoID).delete()
+                p = session.query(cls).filter_by(id=photoID).first()
+                if p:
+                    session.delete(p)
 
     @classmethod
     def delete_many(cls, *photoIDs: int) -> None:
@@ -135,7 +182,9 @@ class PhotoModel(Base):
         with SessionLocal() as session:
             with session.begin():
                 for pid in photoIDs:
-                    session.query(cls).filter_by(photoID=int(pid)).delete()
+                    p = session.query(cls).filter_by(id=int(pid)).first()
+                    if p:
+                        session.delete(p)
 
     @classmethod
     def get_by_id(cls, photo_id: int) -> dict | None:
@@ -149,8 +198,23 @@ class PhotoModel(Base):
             dict | None: A dictionary representation of the photo if found, otherwise None.
         """
         with SessionLocal() as session:
-            p = session.query(cls).filter_by(photoID=photo_id).first()
-            return p.to_dict() if p else None
+            p = session.query(cls).filter_by(id=photo_id).first()
+            if not p:
+                return None
+            data = p.to_dict()
+            # lazy import to avoid circular imports (use package-relative imports)
+            try:
+                from .photo_image import PhotoImageModel
+                from .rating import RatingModel
+
+                img = PhotoImageModel.get_primary_for_photo(p.id)
+                data["image"] = img or ""
+                data["rating"] = RatingModel.get_average_for_photo(p.id) or 0.0
+            except Exception:
+                # if enrichment fails, provide sensible defaults
+                data["image"] = ""
+                data["rating"] = 0.0
+            return data
 
     @classmethod
     def get_by_album(cls, album_id: int) -> list:
@@ -167,22 +231,6 @@ class PhotoModel(Base):
             return [
                 p.to_dict()
                 for p in session.query(cls).filter_by(albumID=album_id).all()
-            ]
-
-    @classmethod
-    def get_by_user(cls, user_id: int) -> list:
-        """
-        Retrieve all photos uploaded by a specific user.
-
-        Parameters:
-            user_id (int): The ID of the user.
-
-        Returns:
-            list: A list of dictionaries representing the user's photos.
-        """
-        with SessionLocal() as session:
-            return [
-                p.to_dict() for p in session.query(cls).filter_by(userID=user_id).all()
             ]
 
     @classmethod
@@ -203,20 +251,6 @@ class PhotoModel(Base):
             ]
 
     @classmethod
-    def count_by_user(cls, user_id: int) -> int:
-        """
-        Count all photos uploaded by a specific user.
-
-        Parameters:
-            user_id (int): The ID of the user.
-
-        Returns:
-            int: The number of photos uploaded by the user.
-        """
-        with SessionLocal() as session:
-            return session.query(cls).filter_by(userID=user_id).count()
-
-    @classmethod
     def update(cls, updated: dict) -> bool:
         """
         Update an existing photo in the database.
@@ -227,12 +261,22 @@ class PhotoModel(Base):
         Returns:
             bool: True if updated successfully, False otherwise.
         """
+        allowed = {"description", "publishedDate", "categoryID", "albumID"}
         with SessionLocal() as session:
             with session.begin():
-                p = session.query(cls).filter_by(photoID=updated["photoID"]).first()
+                p = session.query(cls).filter_by(id=updated["id"]).first()
                 if p:
                     for key, value in updated.items():
-                        if key != "photoID":
+                        if key == "id":
+                            continue
+                        if key not in allowed:
+                            continue
+                        if key == "description":
+                            val = str(value).strip()
+                            if not val:
+                                return False
+                            setattr(p, key, val)
+                        else:
                             setattr(p, key, value)
                     return True
         return False

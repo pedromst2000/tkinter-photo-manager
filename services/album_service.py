@@ -56,7 +56,19 @@ class AlbumService:
         Returns:
             dict: The newly created album data.
         """
-        return AlbumModel.create(name=name, creatorID=creator_id)
+        # application-level validation
+        trimmed = name.strip() if name is not None else ""
+        if not trimmed:
+            raise ValueError("Album name is required")
+        if len(trimmed) > 50:
+            raise ValueError("Album name too long (max 50 characters)")
+
+        # ensure user doesn't already have an album with the same name (case-insensitive)
+        existing_id = AlbumService.get_album_id_by_name(creator_id, trimmed)
+        if existing_id is not None:
+            raise ValueError("You already have an album with that name")
+
+        return AlbumModel.create(name=trimmed, creatorID=creator_id)
 
     @staticmethod
     def rename_album(album_id: int, new_name: str) -> bool:
@@ -70,10 +82,48 @@ class AlbumService:
         Returns:
             bool: True if renamed successfully, False otherwise.
         """
+        trimmed = new_name.strip() if new_name is not None else ""
+        if not trimmed:
+            raise ValueError("Album name is required")
+        if len(trimmed) > 50:
+            raise ValueError("Album name too long (max 50 characters)")
+
         album = AlbumModel.get_by_id(album_id)
-        if album:
-            return AlbumModel.update({**album, "name": new_name})
-        return False
+        if not album:
+            return False
+
+        # prevent renaming to a name already used by the same creator
+        existing_id = AlbumService.get_album_id_by_name(album["creatorID"], trimmed)
+        if existing_id is not None and existing_id != album_id:
+            raise ValueError("You already have an album with that name")
+
+        return AlbumModel.update({**album, "name": trimmed})
+
+    @staticmethod
+    def rename_album_for_user(
+        user_id: int, album_id: int, new_name: str, is_admin: bool = False
+    ) -> bool:
+        """
+        Rename an album after verifying ownership.
+
+        Parameters:
+            user_id: The ID of the requesting user.
+            album_id: The ID of the album.
+            new_name: The new name for the album.
+            is_admin: Whether the requesting user is an admin.
+
+        Returns:
+            bool: True if renamed successfully.
+
+        Raises:
+            ValueError: If album not found, ownership fails, or name is invalid.
+        """
+        album = AlbumModel.get_by_id(album_id)
+        if not album:
+            raise ValueError("Album not found")
+        if album["creatorID"] != user_id and not is_admin:
+            raise ValueError("You can only rename your own albums")
+        return AlbumService.rename_album(album_id, new_name)
 
     @staticmethod
     def delete_album(album_id: int) -> bool:
@@ -89,6 +139,31 @@ class AlbumService:
         return AlbumModel.delete(album_id)
 
     @staticmethod
+    def delete_album_for_user(
+        user_id: int, album_id: int, is_admin: bool = False
+    ) -> bool:
+        """
+        Delete an album after verifying ownership.
+
+        Parameters:
+            user_id: The ID of the requesting user.
+            album_id: The ID of the album to delete.
+            is_admin: Whether the requesting user is an admin.
+
+        Returns:
+            bool: True if deleted successfully.
+
+        Raises:
+            ValueError: If album not found or ownership check fails.
+        """
+        album = AlbumModel.get_by_id(album_id)
+        if not album:
+            raise ValueError("Album not found")
+        if album["creatorID"] != user_id and not is_admin:
+            raise ValueError("You can only delete your own albums")
+        return AlbumModel.delete(album_id)
+
+    @staticmethod
     def get_album_id_by_name(user_id: int, album_name: str) -> Optional[int]:
         """
         Get album ID from album name for a specific user.
@@ -101,9 +176,10 @@ class AlbumService:
             int or None: The album ID if found, None otherwise.
         """
         albums = AlbumModel.get_by_creator(user_id)
+        target = album_name.strip().lower()
         for album in albums:
-            if album["name"] == album_name:
-                return album["albumID"]
+            if album["name"].strip().lower() == target:
+                return album["id"]
         return None
 
     @staticmethod
@@ -119,16 +195,15 @@ class AlbumService:
         """
         from db.models import FavoriteModel
 
-        favorites = FavoriteModel.get_all()
+        favorites = FavoriteModel.get_by_user(user_id)
         if not favorites:
             return []
-        albums = AlbumModel.get_all()
-        return [
-            {"albumID": fav["albumID"], "name": album["name"]}
-            for fav in favorites
-            for album in albums
-            if fav["userID"] == user_id and fav["albumID"] == album["albumID"]
-        ]
+        result = []
+        for fav in favorites:
+            album = AlbumModel.get_by_id(fav["albumID"])
+            if album:
+                result.append({"albumID": fav["albumID"], "name": album["name"]})
+        return result
 
     @staticmethod
     def album_name_exists(album_name: str) -> bool:

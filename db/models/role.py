@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import CheckConstraint, Column, DateTime, Integer, String
 
 from db.engine import Base, SessionLocal
 
@@ -12,8 +12,14 @@ class RoleModel(Base):
 
     __tablename__: str = "roles"
 
-    roleID: int = Column(Integer, primary_key=True, autoincrement=True)
-    role: str = Column(String, unique=True, nullable=False)
+    __table_args__ = (
+        CheckConstraint("id > 0 AND id < 10000000", name="ck_roles_id_range"),
+        CheckConstraint("length(trim(role)) > 0", name="ck_roles_name_not_empty"),
+        CheckConstraint("length(role) <= 25", name="ck_roles_name_maxlen"),
+    )
+
+    id: int = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    role: str = Column(String(25), unique=True, nullable=False)
     createdAt: DateTime = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -31,7 +37,7 @@ class RoleModel(Base):
             dict: A dictionary representation of the RoleModel instance.
         """
         return {
-            "roleID": self.roleID,
+            "id": self.id,
             "role": self.role,
             "createdAt": self.createdAt,
             "updatedAt": self.updatedAt,
@@ -47,3 +53,18 @@ class RoleModel(Base):
         """
         with SessionLocal() as session:
             return [r.to_dict() for r in session.query(cls).all()]
+
+    @classmethod
+    def get_by_name(cls, role_name: str) -> dict | None:
+        """
+        Retrieve a role by its name from the database.
+
+        Parameters:
+            role_name (str): The name of the role to retrieve.
+        Returns:
+            dict | None: A dictionary representing the role if found, otherwise None.
+        """
+
+        with SessionLocal() as session:
+            r = session.query(cls).filter(cls.role.ilike(role_name)).first()
+            return r.to_dict() if r else None

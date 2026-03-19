@@ -1,6 +1,14 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    UniqueConstraint,
+)
 
 from db.engine import Base, SessionLocal
 
@@ -12,9 +20,26 @@ class LikeModel(Base):
 
     __tablename__: str = "likes"
 
-    likeID: int = Column(Integer, primary_key=True, autoincrement=True)
-    userID: int = Column(Integer, ForeignKey("users.userID"), nullable=False)
-    photoID: int = Column(Integer, ForeignKey("photos.photoID"), nullable=False)
+    __table_args__ = (
+        UniqueConstraint("userID", "photoID", name="uq_like_pair"),
+        CheckConstraint("id > 0 AND id < 10000000", name="ck_likes_id_range"),
+        CheckConstraint(
+            "userID > 0 AND userID < 10000000", name="ck_likes_userID_range"
+        ),
+        CheckConstraint(
+            "photoID > 0 AND photoID < 10000000", name="ck_likes_photoID_range"
+        ),
+        Index("ix_likes_photoID", "photoID"),
+        Index("ix_likes_userID", "userID"),
+    )
+
+    id: int = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
+    userID: int = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    photoID: int = Column(
+        Integer, ForeignKey("photos.id", ondelete="CASCADE"), nullable=False
+    )
     createdAt: DateTime = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -23,8 +48,6 @@ class LikeModel(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
-
-    __table_args__ = (UniqueConstraint("userID", "photoID", name="uq_like_pair"),)
 
     def to_dict(self) -> dict:
         """
@@ -35,7 +58,7 @@ class LikeModel(Base):
         """
 
         return {
-            "likeID": self.likeID,
+            "id": self.id,
             "userID": self.userID,
             "photoID": self.photoID,
             "createdAt": self.createdAt,
@@ -61,7 +84,7 @@ class LikeModel(Base):
                     .first()
                 )
                 if existing:
-                    return None
+                    return existing.to_dict()
                 obj = cls(userID=user_id, photoID=photo_id)
                 session.add(obj)
                 session.flush()

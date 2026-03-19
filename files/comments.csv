@@ -1,16 +1,16 @@
-commentID,authorID,comment,photoID,parentCommentID
-1,2,Absolutely stunning sunset at the Grand Canyon!,1,
-2,4,Tokyo cherry blossoms enchanting!,2,
-3,1,Bali beach vibes total serenity.,3,
-4,3,Inca Trail magic to Machu Picchu!,4,
-5,5,Wildflower meadow joy vibrant and alive.,6,
-6,3,Waterfall beauty captured perfectly!,14,
-7,2,Intense focus in that soccer kick love it!,3,
-8,2,Marathon finish line triumph incredible!,7,
-9,4,Snowboarding through powder so cool!,11,
-10,5,Sunset surfing pure bliss captured!,15,
-11,3,Street mural magic love the urban vibe!,4,
-12,4,Art in nature a creative dialogue.,12,
-13,2,Gallery reflections on contemporary art inspiring!,16,
-14,4,Grand Canyon beauty in a frame simply breathtaking!,1,
-15,5,Tokyos cherry blossoms transport me. Gorgeous shot!,2,
+id,authorID,comment,photoID
+1,2,Absolutely stunning sunset at the Grand Canyon!,1
+2,4,Tokyo cherry blossoms enchanting!,2
+3,1,Bali beach vibes total serenity.,3
+4,3,Inca Trail magic to Machu Picchu!,4
+5,5,Wildflower meadow joy vibrant and alive.,6
+6,3,Waterfall beauty captured perfectly!,14
+7,2,Intense focus in that soccer kick love it!,3
+8,2,Marathon finish line triumph incredible!,7
+9,4,Snowboarding through powder so cool!,11
+10,5,Sunset surfing pure bliss captured!,15
+11,3,Street mural magic love the urban vibe!,4
+12,4,Art in nature a creative dialogue.,12
+13,2,Gallery reflections on contemporary art inspiring!,16
+14,4,Grand Canyon beauty in a frame simply breathtaking!,1
+15,5,Tokyos cherry blossoms transport me. Gorgeous shot!,2

@@ -84,13 +84,20 @@ class NotificationService:
         """
         if not NotificationSettingsModel.is_enabled(type_key):
             return None
+
+        # map polymorphic reference to explicit kwargs expected by NotificationModel.create
+        photo_id = reference_id if reference_type == "photo" else None
+        comment_id = reference_id if reference_type == "comment" else None
+        album_id = reference_id if reference_type == "album" else None
+
         return NotificationModel.create(
             type=type_key,
             message=message,
             user_id=user_id,
             sender_id=sender_id,
-            reference_id=reference_id,
-            reference_type=reference_type,
+            photo_id=photo_id,
+            comment_id=comment_id,
+            album_id=album_id,
         )
 
     # ── Notification settings (admin) ─────────────────────────────────────────

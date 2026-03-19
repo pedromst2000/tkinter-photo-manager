@@ -1,9 +1,8 @@
-albumID,name,creatorID
+id,name,creatorID
 1,adventure,2
-2,"""my favorite arts""",2
+2,my favorite arts,2
 3,admin album,1
 4,joao album,3
 5,ana album,4
-6,"""katrine album""",5
-6,"""katrine album""",5
+6,katrine album,5
 7,soccer teams,2

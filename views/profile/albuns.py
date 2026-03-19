@@ -492,7 +492,7 @@ def albunsProfileWindow():
             )
         selected_image: str = listAlbumPhotos.get(listAlbumPhotos.curselection())
         all_photos: list = PhotoController.get_all_photos()
-        matches = [p["photoID"] for p in all_photos if p["image"] == selected_image]
+        matches = [p["id"] for p in all_photos if p["image"] == selected_image]
         if not matches:
             return messagebox.showerror(
                 "Error", "Photo not found.", parent=_albunsProfileWindow_

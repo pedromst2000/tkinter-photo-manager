@@ -1,7 +1,7 @@
 from typing import Optional, Tuple
 
-from db.models.contact import ContactModel
 from services.auth_service import AuthService
+from services.photo_service import PhotoService
 from services.user_service import UserService
 from state.session import session
 
@@ -31,6 +31,22 @@ class ProfileController:
         if user_id is None:
             return session.user_data
         return UserService.get_user_by_id(user_id)
+
+    @staticmethod
+    def get_profile_stats(user_id: int) -> dict:
+        """
+        Get profile statistics (follower count, photo count) for a user.
+
+        Parameters:
+            user_id: The user's ID.
+
+        Returns:
+            dict with 'follower_count' and 'photo_count'.
+        """
+        return {
+            "follower_count": UserService.count_followers(user_id),
+            "photo_count": PhotoService.count_photos_by_user(user_id),
+        }
 
     @staticmethod
     def update_avatar(avatar_filename: str) -> Tuple[bool, str]:
@@ -80,16 +96,15 @@ class ProfileController:
         if new_password != confirm_password:
             return False, "New passwords do not match"
 
-        if len(new_password) < 6:
-            return False, "Password must be at least 6 characters"
-
-        if not AuthService.verify_password(session.user_id, current_password):
+        # Delegate verification and password change to AuthService (business logic)
+        try:
+            if AuthService.change_password(
+                session.user_id, current_password, new_password
+            ):
+                return True, "Password changed successfully"
             return False, "Current password is incorrect"
-
-        if AuthService.change_password(session.user_id, new_password):
-            return True, "Password changed successfully"
-
-        return False, "Failed to change password"
+        except ValueError as e:
+            return False, str(e)
 
     @staticmethod
     def refresh_session_data() -> bool:
@@ -127,7 +142,10 @@ class ProfileController:
             return False, "Title is required"
         if not message or not message.strip():
             return False, "Message is required"
-        ContactModel.create(
-            title=title.strip(), message=message.strip(), userID=session.user_id
-        )
-        return True, "Your message has been sent to the admin"
+        try:
+            UserService.create_contact(
+                title=title.strip(), message=message.strip(), user_id=session.user_id
+            )
+            return True, "Your message has been sent to the admin"
+        except ValueError as e:
+            return False, str(e)

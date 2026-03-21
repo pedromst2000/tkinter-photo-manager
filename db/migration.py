@@ -73,9 +73,9 @@ def _read_users() -> list:
                 if len(parts) < 6:
                     continue
                 try:
-                    role_val = int(parts[4]) if parts[4].strip() else None
+                    role_val = int(parts[4]) if parts[4].strip() else 3
                 except (ValueError, TypeError):
-                    role_val = None
+                    role_val = 3
                 is_blocked = parts[5].strip() == "True"
                 data.append(
                     UserModel(
@@ -218,7 +218,11 @@ def _read_photos() -> list:
                     continue
                 if len(parts) < 5:
                     continue
-                album_id = int(parts[4]) if parts[4].strip() else None
+                try:
+                    album_id = int(parts[4])
+                except Exception:
+                    # malformed or missing album id — skip this row
+                    continue
                 try:
                     published_date = datetime.fromisoformat(parts[2])
                 except Exception:

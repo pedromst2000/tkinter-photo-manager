@@ -22,14 +22,14 @@ class UserModel(Base):
 
     __tablename__: str = "users"
 
-    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    id: int = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
     username: str = Column(String(125), unique=True, nullable=False)
     email: str = Column(String(125), unique=True, nullable=False)
     password: str = Column(String(125), nullable=False)
 
     roleId: int = Column(
-        Integer, ForeignKey("roles.id", ondelete="SET NULL"), nullable=True
-    )
+        Integer, ForeignKey("roles.id", ondelete="RESTRICT"), nullable=False, default=3
+    )  # roleId defaults to 3 (unsigned) and is required
     isBlocked: bool = Column(Boolean, default=False)
     createdAt: DateTime = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -351,8 +351,8 @@ class UserModel(Base):
     __table_args__ = (
         CheckConstraint("id > 0 AND id < 10000000", name="ck_users_id_range"),
         CheckConstraint(
-            "(roleId IS NULL) OR (roleId > 0 AND roleId < 10000000)",
-            name="ck_users_roleId_null_or_range",
+            "roleId > 0 AND roleId < 10000000",
+            name="ck_users_roleId_range",
         ),
         CheckConstraint(
             "length(trim(username)) > 0", name="ck_users_username_not_empty"

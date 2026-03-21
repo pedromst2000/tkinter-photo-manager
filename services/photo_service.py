@@ -164,7 +164,7 @@ class PhotoService:
     @staticmethod
     def create_photo(
         image_path: str,
-        album_id: int = None,
+        album_id: int,
         category_id: int = None,
         description: str = "",
         published_date=None,

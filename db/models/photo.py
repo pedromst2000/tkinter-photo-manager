@@ -28,8 +28,8 @@ class PhotoModel(Base):
             name="ck_photos_categoryId_range",
         ),
         CheckConstraint(
-            "(albumId IS NULL) OR (albumId > 0 AND albumId < 10000000)",
-            name="ck_photos_albumId_null_or_range",
+            "albumId > 0 AND albumId < 10000000",
+            name="ck_photos_albumId_range",
         ),
         CheckConstraint(
             "length(trim(description)) > 0", name="ck_photos_description_not_empty"
@@ -48,7 +48,7 @@ class PhotoModel(Base):
         Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False
     )
     albumId: int = Column(
-        Integer, ForeignKey("albuns.id", ondelete="CASCADE"), nullable=True
+        Integer, ForeignKey("albuns.id", ondelete="CASCADE"), nullable=False
     )
     createdAt: DateTime = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -151,7 +151,7 @@ class PhotoModel(Base):
         description: str,
         publishedDate,
         categoryId: int,
-        albumId: int = None,
+        albumId: int,
     ) -> dict:
         """
         Create a new photo in the database.

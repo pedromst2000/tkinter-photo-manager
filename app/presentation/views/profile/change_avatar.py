@@ -11,6 +11,7 @@ from app.presentation.styles.colors import colors
 from app.presentation.styles.fonts import quickSandBold, quickSandRegular
 from app.presentation.widgets.button import on_enter as button_on_enter
 from app.presentation.widgets.button import on_leave as button_on_leave
+from app.presentation.widgets.window import create_toplevel
 
 image: Any = ""
 photo_image: Any = ""
@@ -97,38 +98,16 @@ def changeAvatarWindow():
 
     global avatarImage
 
-    # open the window
-    _changeAvatarWindow_: tk.Toplevel = tk.Toplevel()
-
+    # create the window using the reusable helper
     userID: int = session.user_id
 
-    # centering the window
-    changeAvatarWindowWidth: int = 500  # width of the window
-    changeAvatarWindowHeight: int = 595  # height of the window
-
-    screenWidth: int = _changeAvatarWindow_.winfo_screenwidth()  # width of the screen
-
-    screenHeight: int = (
-        _changeAvatarWindow_.winfo_screenheight()
-    )  # height of the screen
-
-    x: float = (screenWidth / 2) - (changeAvatarWindowWidth / 2)  # calculate x position
-
-    y: float = (screenHeight / 2) - (
-        changeAvatarWindowHeight / 2
-    )  # calculate y position
-
-    # setting the window size and position
-    # %d = integer
-    # %dx%d = width x height
-    # %d+%d = x position + y position
-    _changeAvatarWindow_.geometry(
-        "%dx%d+%d+%d" % (changeAvatarWindowWidth, changeAvatarWindowHeight, x, y)
+    _changeAvatarWindow_: tk.Toplevel = create_toplevel(
+        title="👤 Profile - Change Avatar 👤",
+        width=500,
+        height=595,
+        icon_path="app/assets/PhotoShowIcon.ico",
+        bg_color=colors["primary-50"],
     )
-    _changeAvatarWindow_.title("👤 Profile - Change Avatar 👤")
-    _changeAvatarWindow_.iconbitmap("app/assets/PhotoShowIcon.ico")
-    _changeAvatarWindow_.resizable(0, 0)
-    _changeAvatarWindow_.config(bg=colors["primary-50"])
 
     # ----------------------  Labels -----------------------------------
 

@@ -11,6 +11,7 @@ from app.presentation.styles.fonts import quickSandBold, quickSandRegular
 from app.presentation.widgets.button import on_enter as button_on_enter
 from app.presentation.widgets.button import on_leave as button_on_leave
 from app.presentation.widgets.lists import insert_favorite_albuns, previewSelectedPhoto
+from app.presentation.widgets.window import create_toplevel
 
 # global variables
 arrowRightIcon = ""
@@ -26,43 +27,16 @@ def favoritesProfileWindow():
     """
     global arrowRightIcon, placeholderImage
 
-    # open the window
-    _favoritesProfileWindow_: tk.Toplevel = tk.Toplevel()
-
+    # create the window using the reusable helper
     userID: int = session.user_id
 
-    # centering the window
-    favoritesProfileWindowWidth: int = 1070  # width of the window
-    favoritesProfileWindowHeight: int = 595  # height of the window
-
-    screenWidth: int = (
-        _favoritesProfileWindow_.winfo_screenwidth()
-    )  # width of the screen
-
-    screenHeight: int = (
-        _favoritesProfileWindow_.winfo_screenheight()
-    )  # height of the screen
-
-    x: float = (screenWidth / 2) - (
-        favoritesProfileWindowWidth / 2
-    )  # calculate x position
-
-    y: float = (screenHeight / 2) - (
-        favoritesProfileWindowHeight / 2
-    )  # calculate y position
-
-    # setting the window size and position
-    # %d = integer
-    # %dx%d = width x height
-    # %d+%d = x position + y position
-    _favoritesProfileWindow_.geometry(
-        "%dx%d+%d+%d"
-        % (favoritesProfileWindowWidth, favoritesProfileWindowHeight, x, y)
+    _favoritesProfileWindow_: tk.Toplevel = create_toplevel(
+        title="👤 Profile - Favorites ✨",
+        width=1070,
+        height=595,
+        icon_path="app/assets/PhotoShowIcon.ico",
+        bg_color=colors["primary-50"],
     )
-    _favoritesProfileWindow_.title("👤 Profile - Favorites ✨")
-    _favoritesProfileWindow_.iconbitmap("app/assets/PhotoShowIcon.ico")
-    _favoritesProfileWindow_.resizable(0, 0)
-    _favoritesProfileWindow_.config(bg=colors["primary-50"])
 
     # ---------------------------- Labels ---------------------------------
 

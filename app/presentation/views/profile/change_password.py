@@ -8,32 +8,21 @@ from app.presentation.styles.fonts import quickSandBold
 from app.presentation.widgets.button import on_enter as button_on_enter
 from app.presentation.widgets.button import on_leave as button_on_leave
 from app.presentation.widgets.input import on_click_outside, on_focus_in, on_focus_out
+from app.presentation.widgets.window import create_toplevel
 
 
 def changePasswordWindow():
     """
     This function is used to display change password window.
     """
-    # open the window
-    _changePasswordWindow_: tk.Toplevel = tk.Toplevel()
-
-    # centering the window
-    changePasswordWindowWidth: int = 500
-    changePasswordWindowHeight: int = 500
-
-    screenWidth: int = _changePasswordWindow_.winfo_screenwidth()
-    screenHeight: int = _changePasswordWindow_.winfo_screenheight()
-
-    x: float = (screenWidth / 2) - (changePasswordWindowWidth / 2)
-    y: float = (screenHeight / 2) - (changePasswordWindowHeight / 2)
-
-    _changePasswordWindow_.geometry(
-        "%dx%d+%d+%d" % (changePasswordWindowWidth, changePasswordWindowHeight, x, y)
+    # create the window using the reusable helper
+    _changePasswordWindow_: tk.Toplevel = create_toplevel(
+        title="👤 Profile - Change Password 🔒🔑",
+        width=500,
+        height=500,
+        icon_path="app/assets/PhotoShowIcon.ico",
+        bg_color=colors["primary-50"],
     )
-    _changePasswordWindow_.title("👤 Profile - Change Password 🔒🔑")
-    _changePasswordWindow_.iconbitmap("app/assets/PhotoShowIcon.ico")
-    _changePasswordWindow_.resizable(0, 0)
-    _changePasswordWindow_.config(bg=colors["primary-50"])
 
     # ---------------------- Labels -----------------------------------
 

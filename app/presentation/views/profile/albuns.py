@@ -13,6 +13,7 @@ from app.presentation.widgets.button import on_enter as button_on_enter
 from app.presentation.widgets.button import on_leave as button_on_leave
 from app.presentation.widgets.input import on_click_outside, on_focus_in, on_focus_out
 from app.presentation.widgets.lists import insert_albuns, previewSelectedPhoto
+from app.presentation.widgets.window import create_toplevel
 
 # global variables
 arrowRightIcon = ""
@@ -31,40 +32,16 @@ def albunsProfileWindow():
 
     global arrowRightIcon, placeholderImage, editIcon, addIcon
 
-    # open the window
-    _albunsProfileWindow_: tk.Toplevel = tk.Toplevel()
-
+    # create the window using the reusable helper
     userID: int = session.user_id
 
-    # centering the window
-    albunsProfileWindowWidth: int = 1100  # width of the window
-    albunsProfileWindowHeight: int = 595  # height of the window
-
-    screenWidth: int = _albunsProfileWindow_.winfo_screenwidth()  # width of the screen
-
-    screenHeight: int = (
-        _albunsProfileWindow_.winfo_screenheight()
-    )  # height of the screen
-
-    x: float = (screenWidth / 2) - (
-        albunsProfileWindowWidth / 2
-    )  # calculate x position
-
-    y: float = (screenHeight / 2) - (
-        albunsProfileWindowHeight / 2
-    )  # calculate y position
-
-    # setting the window size and position
-    # %d = integer
-    # %dx%d = width x height
-    # %d+%d = x position + y position
-    _albunsProfileWindow_.geometry(
-        "%dx%d+%d+%d" % (albunsProfileWindowWidth, albunsProfileWindowHeight, x, y)
+    _albunsProfileWindow_: tk.Toplevel = create_toplevel(
+        title="👤 Profile - Albuns 📷🖼️",
+        width=1100,
+        height=595,
+        icon_path="app/assets/PhotoShowIcon.ico",
+        bg_color=colors["primary-50"],
     )
-    _albunsProfileWindow_.title("👤 Profile - Albuns 📷🖼️")
-    _albunsProfileWindow_.iconbitmap("app/assets/PhotoShowIcon.ico")
-    _albunsProfileWindow_.resizable(0, 0)
-    _albunsProfileWindow_.config(bg=colors["primary-50"])
     # ---------------------------------Labels---------------------------------
 
     selectLabel: tk.Label = tk.Label(

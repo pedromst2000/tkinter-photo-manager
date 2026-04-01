@@ -14,6 +14,7 @@ from app.presentation.widgets.auth_icons import togglePasswordVisibility
 from app.presentation.widgets.button import on_enter as button_on_enter
 from app.presentation.widgets.button import on_leave as button_on_leave
 from app.presentation.widgets.input import on_click_outside, on_focus_in, on_focus_out
+from app.presentation.widgets.window import add_logo_canvas, create_toplevel
 
 
 def registerWindow(Window: object):
@@ -24,44 +25,24 @@ def registerWindow(Window: object):
         Window (object): The window of the application.
     """
 
-    # open the window
-    _registerWindow_: tk.Toplevel = tk.Toplevel()
-
-    # centering the window
-    registerWindowWidth: int = 590  # width of the window
-    registerWindowHeight: int = 670  # height of the window
-
-    screenWidth: int = _registerWindow_.winfo_screenwidth()  # width of the screen
-
-    screenHeight: int = _registerWindow_.winfo_screenheight()  # height of the screen
-
-    x: float = (screenWidth / 2) - (registerWindowWidth / 2)  # calculate x position
-
-    y: float = (screenHeight / 2) - (registerWindowHeight / 2)  # calculate y position
-
-    # setting the window size and position
-    # %d = integer
-    # %dx%d = width x height
-    # %d+%d = x position + y position
-    _registerWindow_.geometry(
-        "%dx%d+%d+%d" % (registerWindowWidth, registerWindowHeight, x, y)
+    # open and configure the window using the reusable helper
+    _registerWindow_: tk.Toplevel = create_toplevel(
+        title="Sign Up",
+        width=590,
+        height=670,
+        icon_path="app/assets/PhotoShowIcon.ico",
+        bg_color=colors["primary-50"],
     )
-    _registerWindow_.title("Sign Up")
-    _registerWindow_.iconbitmap("app/assets/PhotoShowIcon.ico")
-    _registerWindow_.resizable(False, False)
-    _registerWindow_.config(bg=colors["primary-50"])
 
-    canvasLogo: tk.Canvas = tk.Canvas(
-        _registerWindow_, height=120, width=334, highlightthickness=0
+    # add logo canvas
+    add_logo_canvas(
+        _registerWindow_,
+        "app/assets/images/Logo_auth.png",
+        x=120,
+        y=20,
+        width=334,
+        height=120,
     )
-    canvasLogo.place(x=120, y=20)
-
-    logo_image: Image.Image = Image.open("app/assets/images/Logo_auth.png")
-    logo_image = logo_image.resize((334, 120))
-
-    canvasLogo.image = ImageTk.PhotoImage(logo_image)
-
-    canvasLogo.create_image(0, 0, anchor=tk.NW, image=canvasLogo.image)
 
     # ---------------------------
 
@@ -328,7 +309,7 @@ def openSignInLink(event: object, registerWindow: object, window: object):
         window (object): The main application window to be passed to the login window.
     """
     # Local import to avoid circular dependency
-    from views.auth.login import loginWindow
+    from app.presentation.views.auth.login import loginWindow
 
     registerWindow.destroy()
     loginWindow(event, window)

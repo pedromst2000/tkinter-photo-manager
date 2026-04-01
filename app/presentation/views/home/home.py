@@ -1,26 +1,28 @@
-from tkinter import NW, Canvas, Tk, messagebox
+import tkinter as tk
+import tkinter.messagebox as messagebox
 
 from PIL import Image, ImageTk
 
 from app.core.state.session import session
 from app.presentation.layout.Menu import menu
 from app.presentation.styles.colors import colors
+from app.presentation.widgets.window import create_main_window
 
 
 def homeWindow() -> None:
     """
     This function is used to create the home window.
     """
-    # open the window
-    _homeWindow_: Tk = Tk()
+    # create the main application window using the reusable helper
+    _homeWindow_: tk.Tk = create_main_window(
+        title="PhotoShow - Home",
+        width=1350,
+        height=700,
+        icon_path="app/assets/PhotoShowIcon.ico",
+        bg_color=colors["primary-50"],
+    )
 
-    # set the title
-    _homeWindow_.title("PhotoShow - Home")
-    _homeWindow_.iconbitmap("app/assets/PhotoShowIcon.ico")
-    _homeWindow_.resizable(False, False)
-    _homeWindow_.geometry("1350x700")
-    _homeWindow_.config(bg=colors["primary-50"])
-    homeCanvas: Canvas = Canvas(_homeWindow_, width=1350, height=700)
+    homeCanvas: tk.Canvas = tk.Canvas(_homeWindow_, width=1350, height=700)
     homeCanvas.place(x=0, y=0)
 
     homeImage: Image.Image = Image.open("app/assets/images/main_background.png")
@@ -28,7 +30,7 @@ def homeWindow() -> None:
 
     homeImageTk: ImageTk.PhotoImage = ImageTk.PhotoImage(homeImage)
 
-    homeCanvas.create_image(0, 0, image=homeImageTk, anchor=NW)
+    homeCanvas.create_image(0, 0, image=homeImageTk, anchor=tk.NW)
 
     backgroundMenu: Image.Image = Image.open(
         "assets/images/home/menu/backgroundMenu.png"
@@ -41,13 +43,13 @@ def homeWindow() -> None:
     x: int = (1350 - 1145) // 2
     y: int = (700 - 396) // 2
 
-    homeCanvas.create_image(x, y, image=backgroundMenuTk, anchor=NW)
+    homeCanvas.create_image(x, y, image=backgroundMenuTk, anchor=tk.NW)
 
     logoImage: Image.Image = Image.open("app/assets/images/Logo.png")
     logoImage = logoImage.resize((306, 65))
 
     logoImageTk: ImageTk.PhotoImage = ImageTk.PhotoImage(logoImage)
-    homeCanvas.create_image(522, 180, image=logoImageTk, anchor=NW)
+    homeCanvas.create_image(522, 180, image=logoImageTk, anchor=tk.NW)
 
     _menu_: menu = menu(homeCanvas=homeCanvas, homeWindow=_homeWindow_)
 

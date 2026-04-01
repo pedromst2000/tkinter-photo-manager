@@ -17,6 +17,7 @@ from app.presentation.widgets.auth_icons import togglePasswordVisibility
 from app.presentation.widgets.button import on_enter as button_on_enter
 from app.presentation.widgets.button import on_leave as button_on_leave
 from app.presentation.widgets.input import on_click_outside, on_focus_in, on_focus_out
+from app.presentation.widgets.window import add_logo_canvas, create_toplevel
 
 
 def loginWindow(event: object, Window: tk.Tk):
@@ -28,42 +29,24 @@ def loginWindow(event: object, Window: tk.Tk):
         Window (object): The main application window to pass to the login window.
     """
 
-    # open the window
-    _loginWindow_: tk.Toplevel = tk.Toplevel()
-
-    # centering the window
-    loginWindowWidth: int = 573  # width of the window
-    loginWindowHeight: int = 580  # height of the window
-
-    screenWidth: int = _loginWindow_.winfo_screenwidth()  # width of the screen
-
-    screenHeight: int = _loginWindow_.winfo_screenheight()  # height of the screen
-
-    x: int = int((screenWidth / 2) - (loginWindowWidth / 2))  # calculate x position
-
-    y: int = int((screenHeight / 2) - (loginWindowHeight / 2))  # calculate y position
-
-    # setting the window size and position
-    # %d = integer
-    # %dx%d = width x height
-    # %d+%d = x position + y position
-    _loginWindow_.geometry("%dx%d+%d+%d" % (loginWindowWidth, loginWindowHeight, x, y))
-    _loginWindow_.title("Sign In")
-    _loginWindow_.iconbitmap("app/assets/PhotoShowIcon.ico")
-    _loginWindow_.resizable(False, False)
-    _loginWindow_.config(bg=colors["primary-50"])
-
-    canvasLogo: tk.Canvas = tk.Canvas(
-        _loginWindow_, height=120, width=334, highlightthickness=0
+    # open and configure the window using the reusable helper
+    _loginWindow_: tk.Toplevel = create_toplevel(
+        title="Sign In",
+        width=573,
+        height=580,
+        icon_path="app/assets/PhotoShowIcon.ico",
+        bg_color=colors["primary-50"],
     )
-    canvasLogo.place(x=120, y=20)
 
-    logo_image: Image.Image = Image.open("app/assets/images/Logo_auth.png")
-    logo_image = logo_image.resize((334, 120))
-
-    canvasLogo.image = ImageTk.PhotoImage(logo_image)
-
-    canvasLogo.create_image(0, 0, anchor=tk.NW, image=canvasLogo.image)
+    # add logo canvas
+    add_logo_canvas(
+        _loginWindow_,
+        "app/assets/images/Logo_auth.png",
+        x=120,
+        y=20,
+        width=334,
+        height=120,
+    )
 
     # ---------------------------
 

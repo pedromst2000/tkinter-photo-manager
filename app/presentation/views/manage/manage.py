@@ -11,6 +11,7 @@ from app.presentation.widgets.button import on_enter as button_on_enter
 from app.presentation.widgets.button import on_leave as button_on_leave
 from app.presentation.widgets.input import on_click_outside, on_focus_in, on_focus_out
 from app.presentation.widgets.lists import insert_categories, insert_users
+from app.presentation.widgets.window import create_toplevel
 
 addIcon: str = ""
 removeIcon: str = ""
@@ -25,32 +26,14 @@ def manageWindow():
 
     global addIcon, removeIcon
 
-    # open the window
-    _manageWindow_: tk.Toplevel = tk.Toplevel()
-
-    # centering the window
-    manageWindowWidth: int = 1349  # width of the window
-    manageWindowHeight: int = 678  # height of the window
-
-    screenWidth: int = _manageWindow_.winfo_screenwidth()  # width of the screen
-
-    screenHeight: int = _manageWindow_.winfo_screenheight()  # height of the screen
-
-    x: float = (screenWidth / 2) - (manageWindowWidth / 2)  # calculate x position
-
-    y: float = (screenHeight / 2) - (manageWindowHeight / 2)  # calculate y position
-
-    # setting the window size and position
-    # %d = integer
-    # %dx%d = width x height
-    # %d+%d = x position + y position
-    _manageWindow_.geometry(
-        "%dx%d+%d+%d" % (manageWindowWidth, manageWindowHeight, x, y)
+    # create the window using the reusable helper
+    _manageWindow_: tk.Toplevel = create_toplevel(
+        title="🛠️ Manage 🛠️",
+        width=1349,
+        height=678,
+        icon_path="app/assets/PhotoShowIcon.ico",
+        bg_color=colors["primary-50"],
     )
-    _manageWindow_.title("🛠️ Manage 🛠️")
-    _manageWindow_.iconbitmap("app/assets/PhotoShowIcon.ico")
-    _manageWindow_.resizable(0, 0)
-    _manageWindow_.config(bg=colors["primary-50"])
 
     # -------------------------------------------------------------------------
     # global variables

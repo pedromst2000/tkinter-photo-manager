@@ -4,38 +4,21 @@ from app.controllers.admin_controller import AdminController
 from app.presentation.styles.colors import colors
 from app.presentation.styles.fonts import quickSandBold, quickSandRegular
 from app.presentation.widgets.lists import insert_contacts
+from app.presentation.widgets.window import create_toplevel
 
 
 def contactsWindow():
     """
     This function is used to display the admin contacts of banned users window.
     """
-    # open the window
-    _contactsWindow_: tk.Toplevel = tk.Toplevel()
-
-    # centering the window
-    contactsWindowWidth: int = 1000  # width of the window
-    contactsWindowHeight: int = 595  # height of the window
-
-    screenWidth: int = _contactsWindow_.winfo_screenwidth()  # width of the screen
-
-    screenHeight: int = _contactsWindow_.winfo_screenheight()  # height of the screen
-
-    x: float = (screenWidth / 2) - (contactsWindowWidth / 2)  # calculate x position
-
-    y: float = (screenHeight / 2) - (contactsWindowHeight / 2)  # calculate y position
-
-    # setting the window size and position
-    # %d = integer
-    # %dx%d = width x height
-    # %d+%d = x position + y position
-    _contactsWindow_.geometry(
-        "%dx%d+%d+%d" % (contactsWindowWidth, contactsWindowHeight, x, y)
+    # create the window using the reusable helper
+    _contactsWindow_: tk.Toplevel = create_toplevel(
+        title="👤 Profile - Contacts 👥",
+        width=1000,
+        height=595,
+        icon_path="app/assets/PhotoShowIcon.ico",
+        bg_color=colors["primary-50"],
     )
-    _contactsWindow_.title("👤 Profile - Contacts 👥")
-    _contactsWindow_.iconbitmap("app/assets/PhotoShowIcon.ico")
-    _contactsWindow_.resizable(0, 0)
-    _contactsWindow_.config(bg=colors["primary-50"])
 
     # ----------------------  Labels ---------------------------
     contactsLabel: tk.Label = tk.Label(

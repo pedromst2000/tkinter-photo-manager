@@ -1,99 +1,87 @@
 User Stories - Requirements - Features
 
--- datetime para datas
--- datepicker para datas
-
--- Remove all the debuged from the windows or unecessary userpayload debugss
-
 ## ADMIN USER - Manage Users
 
-[X] - Should have a users list to be manage , each should be dynamic.
-[X] - Should be possible to filter the users list by email or username.
-[X] - Can change the roles of the user from unsigned to regular in the users list.
-[X] - Can block an user from bad behavior in the users list.
+- [] **Users list**: Dynamic list of users to manage.
+- [] **Filter users**: Filter by email or username.
+- [] **Change roles**: Promote unsigned → regular or admin.
+- [] **Block users**: Temporarily suspend or block users for bad behavior.
+- [] **Unblock users**: Restore access for previously blocked users.
 
 ## ADMIN USER - Manage Categories
 
-[X] - Should have a categories list to be manage , each should be dynamic.
-[x] - Can add a new category in the categories list for the app.
-[x] - Can delete a category in the categories list of the app.
+- [] **Categories list**: Dynamic categories management.
+- [] **Add category**: Admin can add categories.
+- [] **Delete category**: Admin can delete categories.
 
-## ADMIN USER - Manage Notifications
+## ADMIN USER - Settings of the Notifications
 
-[] - Should have a list of options of each type of notifications to be configured.
-[] - Can choose the type of notification to be sent to the users
-(daily content - added photo to an album of followed user,
-comment photos - comments on liked photos
-favorite album - new photo added to a favorite album
-, viewed profile - content of viewed profile
-).
-[] - daily content - added photo to an album of followed user
-[] - comment photos - comments on liked photos
-[] - favorite album - new photo added to a favorite album
-[] - viewed profile - content of viewed profile
+- [ ] **Notification options**: Configure types and delivery.
+- [ ] **Notification types**: daily content, comment on photo, favorite album update, profile viewed.
 
 ## ALL USERS - Authentication
 
-[X] - Should have a login page to be authenticated.
-[X] - Should have a register page to be authenticated.
-[X] - Can Sign In with email and password.
-[X] - Can Sign Up with username, email and password.
-[X] - Can Sign Out.
-[X] - Should be possibile to navigate to register window from login window.
-[X] - Should be possible to navigate to login window from register window.
-[X] - Restrict access to the app if the user is not authenticated.
-[X] - If the logged user is blocked should display an Account Suspension Notice.
-[] - Blocked User should have the possibility to contact the admin to try unblock the account.
-[X] - Restrict acess to some features, each only admin can access - Manage Users, Manage Categories, Manage Notifications.
-[] - Unsigned User can access all the features but have limited access in the catalog of content, each means, can only view the feature photos (top 5 - most liked photos)
+- [X] **Login page**: Sign in with email and password.
+- [X] **Register page**: Sign up with username, email and password.
+- [X] **Sign out**: End session.
+- [X] **Navigate auth**: Switch between login and register windows.
+- [X] **Access control**: Restrict features to authenticated users (regular roles).
+- [X] **Blocked account notice**: Show suspension notice and contact admin option.
+- [ ] **Unsigned user limits**: Allow browsing but with limited interactions (e.g., view-only top photos).
+
+## ADMIN USER - Profile
+
+- [] **Contacts**: Can view contact messages sent by users and mark them as resolved.
+- [] **Reporting**: View reports of inappropriate content and take action (e.g., remove content, block user).
 
 ## ALL USERS - Profile
 
-[X] - An user should have an avatar.
-[X] - Should have the possibility of updating his avatar.
-[] - An user should have the possibility to chance his password access.
-[X] - An user should be possible to create an album of photos.
-[X] - Display the albuns availabe of the user.
-[X] - Change the name of an album.
-[X] - Number of followers.
-[X] - Delete content (only is possible to delete content created by the user). - delete photo from an album
-[X] - Display favorite albuns.
-[X] - For the admin profile should display the list of contacts of banned users.
+- [ ] **Avatar**: Users have avatars and can update them. (accept jpg/png, max 2MB)
+- [ ] **Change password**: User can change account password.
+- [ ] **Albums**: Create and manage photo albums.
+- [ ] **List albums**: Show user's albums and favorite albums.
+- [ ] **Edit album**: Rename and delete own albums.
+- [ ] **Delete content**: Users can delete only their own photos.
+- [ ] **Add photo to Album**: Upload photo with short description (max 150 chars), publish date, category, and image file
 
-## ALL USERS - Manage Content
+## ALL USERS - Photo Content & Albums (Catalog - Explore)
 
-[] - Add content with short description (max 150chars), date of published, a category associated and an image(Photo). - Add Photo to an album
-[] - Should display "gallery" of random photos in the catalog.
-[] - Should be possible to see the detail of a clicked photo from the "gallery" :
+- [ ] **Gallery**: Display a gallery of photos (catalog - Explore)
+- [ ] **Photo Preview Card**: Show selected photo with preview details (author(avatar, username), nlikes, nComments, rating)
+- [ ] **Buttons on photo preview**: Add Like, View details, View comments, View album, Rate photo and Report photo buttons on photo preview.
+- [ ] **Photo Detail View**: Show full photo with metadata and interactions:
+  - nlikes, nComments, author, like button, view comments, view album, rate photo and report photo buttons on photo detail view, publish date, category, description. 
+- **Comments View**: Show all comments with Scrollable list of comments and the photo preview! Each comment should display the commenter's avatar, username, comment text, and publish date.
+- **Album View**: Show all photos in the album with album details (album name, author, category), and interactions (navigate photos preview, like photos, view commnents, rate photos, report photos, add album to favorites).
+- **Rating**: Allow users to rate photos (1-5 stars) and show average rating on photo preview and detail view.
+  - Will display a small tkinter scalle for non photos rated for logged users, and the average rating for photos with ratings. Users can only rate a photo once! Will have a rating icon like ⭐ 4.5 and also aside the system scale tkinter ⭐ 4.5 (average rating) and ⭐ (user rating with the tkk.Scale) on the photo preview and detail view.
 
-- () the photo (image)
-- () number views
-- () number likes
-- () number comments
-- () author of the photo
-- () button (like)
-- () button ( add comment )
-- () button (see setail of the photo)
-  [] - Display the detail of the photo:
-- () the photo (image)
-- () number views
-- () number likes
-- () description
-- () number comments
-- () author of the photo
-- () button (like)
-- () button ( add comment )
-- () see threat of comments
+## ALL USERS - Filtering & Sorting (Catalog - Explore)
 
-## ALL USERS - Filter Content
+- [ ] **Filter by user**: Search photos by author.
+- [ ] **Filter by category**: Select category filter.
+- [ ] **Sort by views/likes/date/rate**: Allow sorting catalog by popularity or recency.
+  - Default sorting should be by publish date (newest first).
+  - Sorting options should include: "Most Recent", "Most Viewed", "Most Liked", "Highest Rated".
 
-[] - Filter By user the catalog of content. (search)
-[] - Filter By category the catalog of content. (select)
+## ALL USERS - Interaction (Catalog - Explore)
 
-## ALL USERS - Interaction with the content
+- [ ] **Comments**: Users can comment and see comments on photos.
+- [ ] **Likes**: Users can like photos.
+- [ ] **Rating**: Users can rate photos (1-5 stars) and see average rating.
+- [ ] **Reporting**: Users can report inappropriate photos or comments, providing a reason for the report ( e.g., "Inappropriate content", "Spam", "Harassment"). Reported content should be flagged for admin review.
+- [ ] **Favorites**: Users can add albums to favorites.
 
-[] - Can add comment to a photo of an other user album.
-[] - Can add a like to a photo of an other user album.
-[] - Each photo should have a thread of comments.
-[] - Should sent a notification if a user interact (reply of a comment)
-[] - The users can reply to previous comments.
+## ALL USERS - Notifications
+
+- [ ] **Notifications**: Notify owners on comments/likes and users for followed categories.
+
+## ALL USERS - Reporting & Moderation
+
+- [X] **Contact Admin**: Blocked users can contact admin to resolve issues.
+- [ ] **Report content**: Users can report inappropriate photos or comments, providing a reason for the report ( e.g., "Inappropriate content", "Spam", "Harassment"). Reported content should be flagged for admin review.
+
+## ADMIN DASHBOARD & DATA
+
+- [ ] **Dashboard**: Totals (photos, photos by category, users, pending approvals).
+- [ ] **Manage reported content**: Admin can review and remove inappropriate photos/comments.

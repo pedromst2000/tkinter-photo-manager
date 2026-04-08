@@ -53,6 +53,7 @@ PhotoShow is a local desktop application for browsing, organizing, and sharing p
 - Add other users' albums to your favorites.
 - Follow other users and receive in-app notifications.
 - Personalize your profile and avatar; admin tools to manage users and categories.
+- Report inappropriate content for admin review.
 
 ## :clapper: Demo Video
 

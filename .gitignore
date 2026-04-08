@@ -4,6 +4,7 @@
 __pycache__/
 *.pyc
 
+
 ##########################################
 # mypy cache files (used for type checking)
 ##########################################
@@ -16,11 +17,22 @@ __pycache__/
 settings.json
 
 
-
 ########################################
 # Local copy DB file (add as needed)
 ########################################
 photoshow.db
+
+
+########################################
+# SQLite WAL runtime files (created when the DB is opened with WAL journal_mode)
+# These are transient runtime files that coordinate writes and reads and
+# should NOT be committed to version control.
+# - photoshow.db-wal : write-ahead log (recent writes not yet checkpointed)
+# - photoshow.db-shm : shared-memory file for WAL coordination
+########################################
+photoshow.db-wal
+photoshow.db-shm
+
 
 # Backups created by db.backup.backup_db_to_csv
 # These may contain sensitive data (password hashes, emails), do NOT commit.

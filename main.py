@@ -137,6 +137,7 @@ if __name__ == "__main__":
 
     from app.core.db.engine import check_db, init_db
     from app.core.db.reset import reset_db
+    from app.utils.log_utils import log_check, log_issue, log_success
 
     if "--resetDB" in sys.argv:
         # ── Reset: wipe database and re-seed from CSV files ──────────────────
@@ -163,9 +164,18 @@ if __name__ == "__main__":
         sys.exit(0)
 
     # ── Normal startup ───────────────────────────────────────────────────────
-    init_db()  # Ensure tables exist (no-op if already created)
+    log_check("Initializing database...")
+    try:
+        init_db()  # Ensure tables exist (no-op if already created)
+        log_success("Database initialized")
+    except Exception as e:
+        log_issue("Database initialization failed", exc=e)
+        sys.exit(1)
+
+    log_check("Verifying database connection...")
     ok, message = check_db()  # Check DB health before launching the app
     if not ok:
+        log_issue(f"Database check failed: {message}")
         import tkinter.messagebox as mb
 
         _root = tk.Tk()
@@ -176,4 +186,11 @@ if __name__ == "__main__":
         )
         _root.destroy()
         sys.exit(1)
-    main()._main_()  # Launch the main application window
+    log_success("Database connection verified")
+
+    log_check("Starting PhotoShow application...")
+    try:
+        main()._main_()  # Launch the main application window
+        log_success("Application closed")
+    except Exception as e:
+        log_issue("Application error", exc=e)

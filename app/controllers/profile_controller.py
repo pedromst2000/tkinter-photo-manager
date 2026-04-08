@@ -4,6 +4,7 @@ from app.core.services.auth_service import AuthService
 from app.core.services.photo_service import PhotoService
 from app.core.services.user_service import UserService
 from app.core.state.session import session
+from app.utils.log_utils import log_issue
 
 
 class ProfileController:
@@ -128,28 +129,53 @@ class ProfileController:
         return False
 
     @staticmethod
-    def contact_admin(title: str, message: str) -> Tuple[bool, str]:
+    def contact_admin(
+        title: str, message: str, user_id: Optional[int] = None
+    ) -> Tuple[bool, str]:
         """
         Send a contact message to the admin (used by blocked users).
+        Controller handles input validation and user-facing error messages.
 
         Args:
             title: Subject/title of the message.
             message: Body of the message.
-
+            user_id: Optional user ID; falls back to session if not provided.
         Returns:
-            Tuple of (success, message)
+            Tuple[bool, str]: (success, message) tuple.
         """
-        if not session.is_authenticated:
-            return False, "You must be logged in to contact the admin"
-        assert session.user_id is not None
-        if not title or not title.strip():
+        # Resolve user ID from session if not provided
+        if user_id is None:
+            user_id = session.user_id
+        if user_id is None:
+            return False, "Unable to identify user"
+
+        # Delegate to UserService for business logic and database interaction
+        title_clean = title.strip() if title else ""
+        message_clean = message.strip() if message else ""
+
+        # Check required fields
+        if not title_clean and not message_clean:
+            return False, "Title and message are required"
+        if not title_clean:
             return False, "Title is required"
-        if not message or not message.strip():
+        if not message_clean:
             return False, "Message is required"
+
+        # Check length limits (UI prevents this but we validate for safety)
+        if len(title_clean) > 75:
+            return False, "Title too long (max 75 characters)"
+        if len(message_clean) > 255:
+            return False, "Message too long (max 255 characters)"
+
         try:
             UserService.create_contact(
-                title=title.strip(), message=message.strip(), user_id=session.user_id
+                title=title_clean, message=message_clean, userId=user_id
             )
             return True, "Your message has been sent to the admin"
-        except ValueError as e:
-            return False, str(e)
+        except ValueError:
+            return False, "A message with this title already exists"
+        except Exception as e:
+            # Log the real error for diagnostics; never expose internal details to the user.
+            # from app.utils.log_utils import log_issue # import here to avoid circular import
+            log_issue("ProfileController.contact_admin failed", exc=e)
+            return False, "Something went wrong. Please try again later."

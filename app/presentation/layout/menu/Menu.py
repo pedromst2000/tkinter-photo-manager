@@ -42,8 +42,8 @@ class Menu:
 
         self.buttons_by_name: dict[str, tk.Button] = self._create_menu_buttons()
 
-        # Actions accept an optional tkinter event parameter
-        self.actions: dict[str, Callable[[Optional[tk.Event]], None]] = {
+        # Actions accept an optional tkinter event parameter (use a permissive callable type)
+        self.actions: dict[str, Callable[..., None]] = {
             "explore": self._wrap_action(exploreWindow),
             "profile": self._wrap_action(profileWindow),
             "notifications": self._wrap_action(notificationsWindow),
@@ -71,55 +71,69 @@ class Menu:
             buttons[name] = btn
         return buttons
 
-    def _wrap_action(
-        self, fn: Callable[[], None]
-    ) -> Callable[[Optional[tk.Event]], None]:
-        """Wrap a no-arg function into an event-accepting callable for Tk bindings."""
+    def _wrap_action(self, fn: Callable[[], None]) -> Callable[..., None]:
+        """
+        Wrap a menu action function to ensure it can be called with an optional event parameter from button bindings.
 
-        def _wrapped(e: Optional[tk.Event] = None) -> None:
-            fn()
+        Args:
+            fn: The menu action function to wrap (e.g., opening a new window).
+        Returns:
+            Callable: A wrapped function that accepts an optional event parameter and calls the original function.
+        """
 
-        return _wrapped
+        return fn
 
-    def _make_enter_handler(
-        self, btn_widget: tk.Button, btn_name: str
-    ) -> Callable[[Optional[tk.Event]], None]:
-        def _on_enter(e: Optional[tk.Event] = None) -> None:
-            self.hover_helper.on_button_enter(btn_widget, btn_name)
+    def _on_enter(self, e: Optional[tk.Event] = None) -> None:
+        """
+        Generic enter handler: read button attributes from the event widget and delegate to hover helper.
 
-        return _on_enter
+        Args:
+            e: Optional event parameter for binding.
+        """
 
-    def _make_leave_handler(
-        self, btn_widget: tk.Button, btn_name: str
-    ) -> Callable[[Optional[tk.Event]], None]:
-        def _on_leave(e: Optional[tk.Event] = None) -> None:
-            self.hover_helper.on_button_leave(btn_widget, btn_name)
+        btn_widget = getattr(e, "widget", None)
+        if not btn_widget:
+            return
+        btn_name = getattr(btn_widget, "_menu_name", None)
+        self.hover_helper.on_button_enter(btn_widget, btn_name)
 
-        return _on_leave
+    def _on_leave(self, e: Optional[tk.Event] = None) -> None:
+        """
+        Generic leave handler: read button attributes from the event widget and delegate to hover helper.
 
-    def _make_click_handler(
-        self,
-        btn_widget: tk.Button,
-        btn_name: str,
-        action: Callable[[Optional[tk.Event]], None],
-    ) -> Callable[[Optional[tk.Event]], None]:
-        def _on_click(e: Optional[tk.Event] = None) -> None:
-            self._handle_menu_click(btn_name, btn_widget, action, e)
+        Args:
+            e: Optional event parameter for binding.
+        """
+        btn_widget = getattr(e, "widget", None)
+        if not btn_widget:
+            return
+        btn_name = getattr(btn_widget, "_menu_name", None)
+        self.hover_helper.on_button_leave(btn_widget, btn_name)
 
-        return _on_click
+    def _on_click(self, e: Optional[tk.Event] = None) -> None:
+        """
+        Generic click handler: read button attributes from the event widget and delegate to click processor.
+
+        Args:
+            e: Optional event parameter for binding.
+        """
+        btn_widget = getattr(e, "widget", None)
+        if not btn_widget:
+            return
+        btn_name = getattr(btn_widget, "_menu_name", None)
+        self.handle_menu_click(btn_name, btn_widget, e)
 
     def render(self) -> None:
         """Render the menu buttons on the canvas based on the user's role (admin or regular)."""
         if session.is_admin:
-            self._render_menu("admin", self.posAdminMenuX)
+            self.render_menu("admin", self.posAdminMenuX)
         elif session.is_authenticated:
-            self._render_menu("regular", self.posRegularMenuX)
+            self.render_menu("regular", self.posRegularMenuX)
 
-    def _handle_menu_click(
+    def handle_menu_click(
         self,
         btn_name: str,
         btn_widget: tk.Button,
-        action: Callable[[Optional[tk.Event]], None],
         e: Optional[tk.Event] = None,
     ) -> None:
         """
@@ -130,7 +144,7 @@ class Menu:
         Args:
             btn_name (str): The unique name of the clicked button.
             btn_widget (tk.Button): The button widget that was clicked.
-            action (callable): The action to execute for the clicked button.
+            e: Optional[tk.Event] = None, the event object from the click binding.
         """
         # Reset previously active button (if any) to default state
         prev = self.hover_helper.active_button
@@ -149,10 +163,20 @@ class Menu:
         except Exception:
             pass
 
-        # Execute the button's action, pass through the event
-        action(e)
+        # Execute the button's action. Actions are stored in `self.actions`.
+        action = self.actions.get(btn_name)
+        if not action:
+            return
+        # Prefer calling without event (most actions don't expect it).
+        try:
+            action()
+        except TypeError:
+            try:
+                action(e)
+            except Exception:
+                pass
 
-    def _render_menu(self, role: str, start_x: int) -> None:
+    def render_menu(self, role: str, start_x: int) -> None:
         """
         Render menu buttons for the specified user role at the given starting X position.
 
@@ -174,16 +198,22 @@ class Menu:
 
             handler = self.actions.get(name)
             if handler:
-                btn.bind("<Button-1>", self._make_click_handler(btn, name, handler))
+                # Store metadata on the widget so generic handlers can access it.
+                setattr(btn, "_menu_name", name)
+                setattr(btn, "_menu_action", handler)
+                btn.bind("<Button-1>", self._on_click)
 
-            btn.bind("<Enter>", self._make_enter_handler(btn, name))
-            btn.bind("<Leave>", self._make_leave_handler(btn, name))
+            btn.bind("<Enter>", self._on_enter)
+            btn.bind("<Leave>", self._on_leave)
 
             position += 1
 
     def _sign_out_handler(self, e: Optional[tk.Event] = None) -> None:
         """
         Handle the sign-out action by logging out the user and closing the home window.
+
+        Args:
+            e: Optional event parameter for binding.
         """
 
         try:

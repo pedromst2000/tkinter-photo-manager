@@ -1,18 +1,16 @@
 import tkinter as tk
-import tkinter.messagebox as messagebox
-from typing import Optional
 
-from app.controllers.profile_controller import ProfileController
 from app.core.state.session import session
 from app.presentation.layout.menu.helpers.menu_button_state import (
     MenuButtonStateManager,
 )
 from app.presentation.styles.colors import colors
 from app.presentation.styles.fonts import quickSandBold, quickSandRegular
+from app.presentation.views.home.contact_admin_dialog import open_contact_admin
 from app.presentation.widgets.helpers.button import on_enter as button_on_enter
 from app.presentation.widgets.helpers.button import on_leave as button_on_leave
 from app.presentation.widgets.helpers.window import load_image
-from app.presentation.widgets.window import create_main_window, create_toplevel
+from app.presentation.widgets.window import create_main_window
 
 
 def homeBannedWindow():
@@ -178,93 +176,9 @@ def homeBannedWindow():
         lambda event: signout_state_manager.on_button_leave(signoutBtn, "signOut"),
     )
 
-    def _contact_admin_(event: tk.Event):
-        dialogWidth, dialogHeight = 420, 340
-        dialog: tk.Toplevel = create_toplevel(
-            title="Contact Admin",
-            width=dialogWidth,
-            height=dialogHeight,
-            parent=_homeBannedWindow_,
-            bg_color=colors["primary-50"],
-        )
-
-        tk.Label(
-            dialog,
-            text="Contact Admin",
-            font=quickSandBold(18),
-            bg=colors["primary-50"],
-            fg=colors["secondary-500"],
-        ).place(x=120, y=15)
-
-        tk.Label(
-            dialog,
-            text="Title",
-            font=quickSandBold(12),
-            bg=colors["primary-50"],
-            fg=colors["secondary-500"],
-        ).place(x=30, y=65)
-        titleEntry: tk.Entry = tk.Entry(
-            dialog,
-            width=40,
-            borderwidth=0,
-            font=quickSandBold(11),
-            bg=colors["secondary-300"],
-            fg=colors["secondary-500"],
-            highlightthickness=0,
-            cursor="xterm",
-        )
-        titleEntry.place(x=30, y=95)
-
-        tk.Label(
-            dialog,
-            text="Message",
-            font=quickSandBold(12),
-            bg=colors["primary-50"],
-            fg=colors["secondary-500"],
-        ).place(x=30, y=130)
-        messageText: tk.Text = tk.Text(
-            dialog,
-            width=40,
-            height=6,
-            font=quickSandRegular(11),
-            bg=colors["secondary-300"],
-            fg=colors["secondary-500"],
-            highlightthickness=0,
-            borderwidth=0,
-            wrap="word",
-        )
-        messageText.place(x=30, y=158)
-
-        def _submit_(e: Optional[tk.Event] = None):
-            success, msg = ProfileController.contact_admin(
-                titleEntry.get(),
-                messageText.get("1.0", "end-1c"),
-            )
-            if success:
-                messagebox.showinfo("Sent", msg, parent=dialog)
-                dialog.destroy()
-            else:
-                messagebox.showerror("Error", msg, parent=dialog)
-
-        sendBtn: tk.Button = tk.Button(
-            dialog,
-            width=18,
-            height=2,
-            text="Send Message",
-            borderwidth=0,
-            font=quickSandBold(12),
-            background=colors["accent-300"],
-            highlightthickness=0,
-            activebackground=colors["accent-100"],
-            fg=colors["secondary-500"],
-            cursor="hand2",
-        )
-        sendBtn.place(x=130, y=290)
-        sendBtn.bind("<Button-1>", _submit_)
-        dialog.bind("<Return>", _submit_)
-        dialog.grab_set()
-
-    contactAdminButton.bind("<Button-1>", _contact_admin_)
+    contactAdminButton.bind(
+        "<Button-1>", lambda event: open_contact_admin(_homeBannedWindow_, event)
+    )
 
     signoutBtn.bind(
         "<Button-1>", lambda event: (session.logout(), _homeBannedWindow_.destroy())

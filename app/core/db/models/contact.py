@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from sqlalchemy import func  # import func for SQL functions like lower() and trim()
 from sqlalchemy import (
     CheckConstraint,
     Column,
@@ -79,33 +80,40 @@ class ContactModel(Base):
     @classmethod
     def create(cls, title: str, message: str, userId: int) -> dict:
         """
-        Create a new contact message in the database.
+        Create a new contact message in the database with the given title, message, and userId.
+        Validates that the title is unique (case-insensitive, trimmed) and that required fields are not empty.
 
         Args:
-            title (str): The title of the contact message.
-            message (str): The content of the contact message.
+            title (str): The title of the contact message (trimmed by service/controller).
+            message (str): The content of the contact message (trimmed by service/controller).
             userId (int): The ID of the user who submitted the contact message.
 
         Returns:
             dict: A dictionary representation of the newly created contact message.
-        """
-        # application-level validation: trim and ensure non-empty within limits
-        trimmed_title = title.strip() if title is not None else ""
-        trimmed_message = message.strip() if message is not None else ""
-        if not trimmed_title:
-            raise ValueError("Title is required")
-        if not trimmed_message:
-            raise ValueError("Message is required")
-        if len(trimmed_title) > 75:
-            raise ValueError("Title must be at most 75 characters")
-        if len(trimmed_message) > 255:
-            raise ValueError("Message must be at most 255 characters")
 
-        with SessionLocal() as session:
-            with session.begin():
-                obj: ContactModel = cls(
-                    title=trimmed_title, message=trimmed_message, userId=userId
-                )
-                session.add(obj)
-                session.flush()
-                return obj.to_dict()
+        Raises:
+            ValueError: If a contact with the same title already exists.
+        """
+        try:
+            with SessionLocal() as session:
+                with session.begin():
+                    # Duplicate-title check inside the same write transaction (atomic read-then-write)
+                    normalized = title.strip().lower()
+                    already_exists = session.query(
+                        session.query(cls)
+                        .filter(func.lower(func.trim(cls.title)) == normalized)
+                        .exists()
+                    ).scalar()
+                    if already_exists:
+                        raise ValueError("Duplicate title")
+                    obj: ContactModel = cls(title=title, message=message, userId=userId)
+                    session.add(obj)
+                    session.flush()
+                    return obj.to_dict()
+        except ValueError:
+            raise  # Re-raise validation errors
+        except Exception as e:
+            from app.utils.log_utils import log_issue
+
+            log_issue("ContactModel.create failed during database operation", exc=e)
+            raise

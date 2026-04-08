@@ -356,16 +356,16 @@ class UserService:
         return FollowModel.count_following(user_id)
 
     @staticmethod
-    def create_contact(title: str, message: str, user_id: int) -> dict:
+    def create_contact(title: str, message: str, userId: int) -> dict:
         """
-        Create a contact message from a user to the admin.
+        Create a new contact message from a user.
 
         Args:
-            title: Subject of the message.
-            message: Body of the message.
-            user_id: The ID of the user sending the message.
+            title: Subject of the message (should be trimmed, pre-validated).
+            message: Body of the message (should be trimmed, pre-validated).
+            userId: The ID of the user sending the message.
 
         Returns:
-            dict: The created contact entry.
+            dict: The created contact message as a dictionary.
         """
-        return ContactModel.create(title=title, message=message, userId=user_id)
+        return ContactModel.create(title=title, message=message, userId=userId)

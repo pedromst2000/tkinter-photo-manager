@@ -4,6 +4,7 @@ from app.controllers.auth_controller import AuthController
 from app.controllers.notification_controller import NotificationController
 from app.controllers.photo_controller import PhotoController
 from app.controllers.profile_controller import ProfileController
+from app.controllers.report_controller import ReportController
 
 # This file marks the 'controllers' directory as a Python package.
 
@@ -14,4 +15,5 @@ __all__ = [
     "AlbumController",
     "PhotoController",
     "NotificationController",
+    "ReportController",
 ]

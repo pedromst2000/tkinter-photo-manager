@@ -6,6 +6,7 @@ from app.core.services.album_service import AlbumService
 from app.core.services.auth_service import AuthService
 from app.core.services.notification_service import NotificationService
 from app.core.services.photo_service import PhotoService
+from app.core.services.report_service import ReportService
 from app.core.services.user_service import UserService
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "AlbumService",
     "PhotoService",
     "NotificationService",
+    "ReportService",
 ]

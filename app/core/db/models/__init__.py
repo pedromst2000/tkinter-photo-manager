@@ -13,6 +13,8 @@ from app.core.db.models.notification_types import NotificationTypeModel
 from app.core.db.models.photo import PhotoModel
 from app.core.db.models.photo_image import PhotoImageModel
 from app.core.db.models.rating import RatingModel
+from app.core.db.models.report import ReportModel
+from app.core.db.models.report_reason import ReportReasonModel
 from app.core.db.models.role import RoleModel
 from app.core.db.models.user import UserModel
 
@@ -37,6 +39,8 @@ __all__ = [
     "ContactModel",
     "FollowModel",
     "LikeModel",
+    "ReportModel",
+    "ReportReasonModel",
 ]
 
 # =============================================================================
@@ -399,4 +403,65 @@ CommentModel.notifications_rel = relationship(
     "NotificationModel",
     foreign_keys=[NotificationModel.commentId],
     back_populates="comment_rel",
+)
+
+# =============================================================================
+# ReportModel relationships
+# =============================================================================
+
+# ORM one-to-many: one user (reporter) has many reports sent
+UserModel.reports_sent_rel = relationship(
+    "ReportModel",
+    foreign_keys=[ReportModel.reporterId],
+    cascade="all, delete-orphan",
+    passive_deletes=True,
+    back_populates="reporter_rel",
+)
+
+# ORM many-to-one: many reports belong to one reporter user
+ReportModel.reporter_rel = relationship(
+    "UserModel",
+    foreign_keys=[ReportModel.reporterId],
+    back_populates="reports_sent_rel",
+)
+
+# ORM many-to-one: report targets a photo (nullable)
+ReportModel.photo_rel = relationship(
+    "PhotoModel", foreign_keys=[ReportModel.photoId], back_populates="reports_rel"
+)
+
+# ORM many-to-one: report targets a comment (nullable)
+ReportModel.comment_rel = relationship(
+    "CommentModel", foreign_keys=[ReportModel.commentId], back_populates="reports_rel"
+)
+
+# ORM one-to-many: one photo has many reports
+PhotoModel.reports_rel = relationship(
+    "ReportModel",
+    cascade="all, delete-orphan",
+    passive_deletes=True,
+    back_populates="photo_rel",
+)
+
+# ORM one-to-many: one comment has many reports
+CommentModel.reports_rel = relationship(
+    "ReportModel",
+    cascade="all, delete-orphan",
+    passive_deletes=True,
+    back_populates="comment_rel",
+)
+
+# ORM many-to-one: report references a reason (report_reasons)
+ReportModel.reason_rel = relationship(
+    "ReportReasonModel",
+    foreign_keys=[ReportModel.reasonId],
+    back_populates="reports_rel",
+)
+
+# ORM one-to-many: one reason has many reports
+ReportReasonModel.reports_rel = relationship(
+    "ReportModel",
+    foreign_keys=[ReportModel.reasonId],
+    passive_deletes=True,
+    back_populates="reason_rel",
 )

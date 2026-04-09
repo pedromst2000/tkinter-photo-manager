@@ -1,5 +1,7 @@
 User Stories - Requirements - Features
 
+<!--Convert the requirements into a table of requirements -->
+
 ## ADMIN USER - Manage Users
 
 - [] **Users list**: Dynamic list of users to manage.
@@ -32,7 +34,10 @@ User Stories - Requirements - Features
 ## ADMIN USER - Profile
 
 - [] **Contacts**: Can view contact messages sent by users and mark them as resolved.
+  - Should be able to mark as resolved and delete the message from the list of contacts
 - [] **Reporting**: View reports of inappropriate content and take action (e.g., remove content, block user).
+  - Should be able to mark as resolved and delete the report from the list of reports.
+  - Mark as resolved means that the admin has taken action on the report and it is no longer pending review. This could involve removing the reported content, blocking the offending user, or taking other appropriate measures based on the nature of the report. Once marked as resolved, the report should be removed from the list of active reports to keep the admin dashboard organized and focused on unresolved issues.
 
 ## ALL USERS - Profile
 
@@ -42,15 +47,15 @@ User Stories - Requirements - Features
 - [ ] **List albums**: Show user's albums and favorite albums.
 - [ ] **Edit album**: Rename and delete own albums.
 - [ ] **Delete content**: Users can delete only their own photos.
-- [ ] **Add photo to Album**: Upload photo with short description (max 150 chars), publish date, category, and image file
+- [ ] **Add photo to Album**: Upload photo with short description (max 150 chars), publish date (auto), category, and image file (accept jpg/png, max 5MB) to an album. Users can only add photos to their own albums.
 
 ## ALL USERS - Photo Content & Albums (Catalog - Explore)
 
-- [ ] **Gallery**: Display a gallery of photos (catalog - Explore)
+- [ ] **Gallery**: Display a gallery of photos of albums (catalog - Explore)
 - [ ] **Photo Preview Card**: Show selected photo with preview details (author(avatar, username), nlikes, nComments, rating)
 - [ ] **Buttons on photo preview**: Add Like, View details, View comments, View album, Rate photo and Report photo buttons on photo preview.
 - [ ] **Photo Detail View**: Show full photo with metadata and interactions:
-  - nlikes, nComments, author, like button, view comments, view album, rate photo and report photo buttons on photo detail view, publish date, category, description. 
+  - nlikes, nComments, author, like button, view comments, view album, rate photo and report photo buttons on photo detail view, category, description. 
 - **Comments View**: Show all comments with Scrollable list of comments and the photo preview! Each comment should display the commenter's avatar, username, comment text, and publish date.
 - **Album View**: Show all photos in the album with album details (album name, author, category), and interactions (navigate photos preview, like photos, view commnents, rate photos, report photos, add album to favorites).
 - **Rating**: Allow users to rate photos (1-5 stars) and show average rating on photo preview and detail view.
@@ -62,7 +67,7 @@ User Stories - Requirements - Features
 - [ ] **Filter by category**: Select category filter.
 - [ ] **Sort by views/likes/date/rate**: Allow sorting catalog by popularity or recency.
   - Default sorting should be by publish date (newest first).
-  - Sorting options should include: "Most Recent", "Most Viewed", "Most Liked", "Highest Rated".
+  - Sorting options should include: "Most Recent", "Most Liked", "Highest Rated", "Most Commented".
 
 ## ALL USERS - Interaction (Catalog - Explore)
 

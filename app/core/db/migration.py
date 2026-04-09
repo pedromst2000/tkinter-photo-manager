@@ -16,9 +16,11 @@ from app.core.db.models import (
     PhotoImageModel,
     PhotoModel,
     RatingModel,
+    ReportModel,
     RoleModel,
     UserModel,
 )
+from app.core.db.models.report_reason import ReportReasonModel
 from app.utils.hash_utils import hash_password
 from app.utils.log_utils import log_check, log_issue, log_success
 
@@ -569,6 +571,88 @@ def _read_notification_types() -> list:
     return data
 
 
+def _read_report_reasons() -> list:
+    """
+    Read report reason categories from CSV and return ReportReasonModel instances.
+
+    Returns:
+        list: A list of ReportReasonModel instances read from the CSV file.
+    """
+    path = "app/files/report_reasons.csv"
+    data = []
+    log_check(f"Reading report reasons from {path}...")
+    try:
+        with open(path, "r", encoding="utf-8-sig", newline="") as f:
+            for parts in csv.reader(f):  # expected: id,label
+                if parts[0] == "id":
+                    continue
+                if len(parts) < 2:
+                    continue
+                data.append(ReportReasonModel(id=int(parts[0]), label=parts[1].strip()))
+        log_success(f"Loaded {len(data)} report reasons.")
+    except FileNotFoundError as e:
+        log_issue(
+            "report_reasons.csv not found — report reasons will not be seeded",
+            exc=e,
+            path=path,
+        )
+    except Exception as e:
+        log_issue("Unexpected error reading report reasons", exc=e, path=path)
+    return data
+
+
+def _read_reports() -> list:
+    """
+    Read reports from CSV and return ReportModel instances.
+
+    Returns:
+        list: A list of ReportModel instances read from the CSV file.
+    """
+    path = "app/files/reports.csv"
+    data = []
+    log_check(f"Reading reports from {path}...")
+    try:
+        with open(path, "r", encoding="utf-8-sig", newline="") as f:
+            for parts in csv.reader(
+                f
+            ):  # expected: id,reporterId,reasonId,photoId,commentId
+                if parts[0] == "id":
+                    continue
+                if len(parts) < 5:
+                    continue
+                try:
+                    photo_id = int(parts[3]) if parts[3].strip() else None
+                except (ValueError, TypeError):
+                    photo_id = None
+                try:
+                    comment_id = int(parts[4]) if parts[4].strip() else None
+                except (ValueError, TypeError):
+                    comment_id = None
+                # reason now stored as FK id (report_reasons.id)
+                try:
+                    reason_id = int(parts[2])
+                except Exception:
+                    # malformed reason — skip row
+                    continue
+                data.append(
+                    ReportModel(
+                        id=int(parts[0]),
+                        reporterId=int(parts[1]),
+                        reasonId=reason_id,
+                        photoId=photo_id,
+                        commentId=comment_id,
+                    )
+                )
+        log_success(f"Loaded {len(data)} reports.")
+    except FileNotFoundError as e:
+        log_issue(
+            "reports.csv not found — reports will not be seeded", exc=e, path=path
+        )
+    except Exception as e:
+        log_issue("Unexpected error reading reports", exc=e, path=path)
+    return data
+
+
 def _read_all() -> dict:
     """
     Read all CSVs in a dependency-safe order and return a dict of lists.
@@ -592,6 +676,8 @@ def _read_all() -> dict:
     notifications = _read_notifications()
     follows = _read_follows()
     likes = _read_likes()
+    report_reasons = _read_report_reasons()
+    reports = _read_reports()
 
     return {
         "roles": roles,
@@ -609,6 +695,8 @@ def _read_all() -> dict:
         "notifications": notifications,
         "follows": follows,
         "likes": likes,
+        "report_reasons": report_reasons,
+        "reports": reports,
     }
 
 
@@ -629,6 +717,8 @@ _CSV_ORDER = [
     "notifications",
     "follows",
     "likes",
+    "report_reasons",
+    "reports",
 ]
 
 # ── Public API ────────────────────────────────────────────────────────────────

@@ -58,8 +58,9 @@ class AlbumService:
             raise ValueError("You already have an album with that name")
 
         with SessionLocal() as session:
-            with session.begin():
-                return AlbumModel.create(session, name=trimmed, creatorId=creator_id)
+            result = AlbumModel.create(session, name=trimmed, creatorId=creator_id)
+            session.commit()
+            return result
 
     @staticmethod
     def rename_album(album_id: int, new_name: str) -> Optional[dict]:
@@ -89,8 +90,9 @@ class AlbumService:
             if existing_id is not None and existing_id != album_id:
                 raise ValueError("You already have an album with that name")
 
-            with session.begin():
-                return AlbumModel.update(session, {**album, "name": trimmed})
+            result = AlbumModel.update(session, {**album, "name": trimmed})
+            session.commit()
+            return result
 
     @staticmethod
     def rename_album_for_user(
@@ -143,8 +145,9 @@ class AlbumService:
                 raise ValueError("Album not found")
             if album["creatorId"] != user_id and not is_admin:
                 raise ValueError("You can only delete your own albums")
-            with session.begin():
-                return AlbumModel.delete(session, album_id)
+            result = AlbumModel.delete(session, album_id)
+            session.commit()
+            return result
 
     @staticmethod
     def get_album_id_by_name(user_id: int, album_name: str) -> Optional[int]:

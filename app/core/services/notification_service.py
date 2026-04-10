@@ -18,15 +18,16 @@ class NotificationService:
     def mark_read(not_id: int) -> bool:
         """Mark a notification as read. Returns True if successful."""
         with SessionLocal() as session:
-            with session.begin():
-                return NotificationModel.mark_read(session, not_id)
+            result = NotificationModel.mark_read(session, not_id)
+            session.commit()
+            return result
 
     @staticmethod
     def mark_all_read(user_id: int) -> None:
         """Mark all notifications as read for a user."""
         with SessionLocal() as session:
-            with session.begin():
-                NotificationModel.mark_all_read(session, user_id)
+            NotificationModel.mark_all_read(session, user_id)
+            session.commit()
 
     @staticmethod
     def toggle_type(type_key: str, enabled: bool) -> bool:
@@ -37,8 +38,9 @@ class NotificationService:
             bool: True if the type was found and updated, False otherwise.
         """
         with SessionLocal() as session:
-            with session.begin():
-                return NotificationTypeModel.set_enabled(session, type_key, enabled)
+            result = NotificationTypeModel.set_enabled(session, type_key, enabled)
+            session.commit()
+            return result
 
     @staticmethod
     def send(
@@ -70,14 +72,15 @@ class NotificationService:
             if not nt or not nt["isEnabled"]:
                 return None
 
-            with session.begin():
-                return NotificationModel.create(
-                    session,
-                    type_id=nt["id"],
-                    message=message,
-                    user_id=user_id,
-                    sender_id=sender_id,
-                    photo_id=photo_id,
-                    album_id=album_id,
-                    comment_id=comment_id,
-                )
+            result = NotificationModel.create(
+                session,
+                type_id=nt["id"],
+                message=message,
+                user_id=user_id,
+                sender_id=sender_id,
+                photo_id=photo_id,
+                album_id=album_id,
+                comment_id=comment_id,
+            )
+            session.commit()
+            return result

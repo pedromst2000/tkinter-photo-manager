@@ -145,15 +145,15 @@ class PhotoService:
             dict: The created photo as a dictionary.
         """
         with SessionLocal() as session:
-            with session.begin():
-                photo = PhotoModel.create(
-                    session,
-                    description=description,
-                    publishedDate=published_date or datetime.now(timezone.utc),
-                    categoryId=category_id,
-                    albumId=album_id,
-                )
-                PhotoImageModel.create(session, photo_id=photo["id"], image=image_path)
+            photo = PhotoModel.create(
+                session,
+                description=description,
+                publishedDate=published_date or datetime.now(timezone.utc),
+                categoryId=category_id,
+                albumId=album_id,
+            )
+            PhotoImageModel.create(session, photo_id=photo["id"], image=image_path)
+            session.commit()
             return PhotoModel.get_by_id(session, photo["id"])
 
     @staticmethod
@@ -180,8 +180,8 @@ class PhotoService:
             )
             owner_id = album["creatorId"] if album else None
             if owner_id == user_id:
-                with session.begin():
-                    PhotoModel.delete(session, photo_id)
+                PhotoModel.delete(session, photo_id)
+                session.commit()
                 return True
             return False
 
@@ -210,8 +210,9 @@ class PhotoService:
             )
             owner_id = album["creatorId"] if album else None
             if owner_id == user_id:
-                with session.begin():
-                    return PhotoModel.update(session, {**photo, **updates})
+                PhotoModel.update(session, {**photo, **updates})
+                session.commit()
+                return True
             return False
 
     @staticmethod
@@ -295,27 +296,29 @@ class PhotoService:
     def like_photo(user_id: int, photo_id: int) -> bool:
         """Like a photo. Returns True if the like was created, False if already liked."""
         with SessionLocal() as session:
-            with session.begin():
-                return LikeModel.like(session, user_id, photo_id) is not None
+            result = LikeModel.like(session, user_id, photo_id) is not None
+            session.commit()
+            return result
 
     @staticmethod
     def unlike_photo(user_id: int, photo_id: int) -> bool:
         """Unlike a photo. Returns True if the like was removed, False if it didn't exist."""
         with SessionLocal() as session:
-            with session.begin():
-                return LikeModel.unlike(session, user_id, photo_id)
+            result = LikeModel.unlike(session, user_id, photo_id)
+            session.commit()
+            return result
 
     @staticmethod
     def rate_photo(user_id: int, photo_id: int, rating_value: int) -> None:
         """Submit a rating (1-5) for a photo."""
         with SessionLocal() as session:
-            with session.begin():
-                RatingModel.create(
-                    session,
-                    user_id=user_id,
-                    photo_id=photo_id,
-                    rating_value=rating_value,
-                )
+            RatingModel.create(
+                session,
+                user_id=user_id,
+                photo_id=photo_id,
+                rating_value=rating_value,
+            )
+            session.commit()
 
     @staticmethod
     def add_category(name: str) -> Tuple[bool, str]:
@@ -334,8 +337,8 @@ class PhotoService:
         if PhotoService.category_exists(name.strip()):
             return False, "The category already exists, please try again!"
         with SessionLocal() as session:
-            with session.begin():
-                CategoryModel.create(session, name.strip())
+            CategoryModel.create(session, name.strip())
+            session.commit()
         return True, "The category was added successfully!"
 
     @staticmethod
@@ -354,7 +357,7 @@ class PhotoService:
             categories = CategoryModel.get_all(session)
             for cat in categories:
                 if cat["category"] == name:
-                    with session.begin():
-                        CategoryModel.delete(session, name)
+                    CategoryModel.delete(session, name)
+                    session.commit()
                     return True, f"{name} was deleted successfully"
             return False, "Category not found"

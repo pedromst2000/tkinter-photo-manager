@@ -1,5 +1,7 @@
 from typing import List, Optional, Tuple
 
+from app.core.db.engine import SessionLocal
+from app.core.db.models.photo import PhotoModel
 from app.core.services.photo_service import PhotoService
 from app.core.state.session import session
 
@@ -26,17 +28,17 @@ class PhotoController:
         return PhotoService.get_all_photos()
 
     @staticmethod
-    def get_photo(photo_id: int) -> Optional[dict]:
+    def get_photo_details(photo_id: int) -> Optional[dict]:
         """
-        Get a specific photo by ID.
+        Get a photo enriched with like stats and owner info.
 
         Args:
             photo_id: The photo's ID.
 
         Returns:
-            dict or None: The photo data if found.
+            dict or None: Enriched photo data (includes likes, has_liked, username).
         """
-        return PhotoService.get_photo_by_id(photo_id)
+        return PhotoService.get_photo_details(photo_id, session.user_id)
 
     @staticmethod
     def get_photos_by_album(album_id: int) -> List[dict]:
@@ -49,7 +51,8 @@ class PhotoController:
         Returns:
             list: List of photo dictionaries in the album.
         """
-        return PhotoService.get_photos_by_album(album_id)
+        with SessionLocal() as db:
+            return PhotoModel.get_by_album(db, album_id)
 
     @staticmethod
     def get_photos_by_user(user_id: Optional[int] = None) -> List[dict]:
@@ -118,8 +121,6 @@ class PhotoController:
             Tuple of (success, message)
         """
 
-        if not session.is_authenticated:
-            return False, "You must be logged in to upload photos"
         if not image_path:
             return False, "Image path is required"
         try:
@@ -145,8 +146,6 @@ class PhotoController:
         Returns:
             Tuple of (success, message)
         """
-        if not session.is_authenticated:
-            return False, "You must be logged in to delete photos"
         assert session.user_id is not None
 
         # Delegate ownership check and deletion to service (business logic)
@@ -166,8 +165,6 @@ class PhotoController:
         Returns:
             Tuple of (success, message)
         """
-        if not session.is_authenticated:
-            return False, "You must be logged in to update photos"
         assert session.user_id is not None
 
         # Delegate ownership check and update to service (business logic)
@@ -185,9 +182,6 @@ class PhotoController:
         Returns:
             Tuple of (success, message)
         """
-
-        if not session.is_authenticated:
-            return False, "You must be logged in to like photos"
         assert session.user_id is not None
         if PhotoService.like_photo(session.user_id, photo_id):
             return True, "Photo liked"
@@ -202,9 +196,6 @@ class PhotoController:
         Returns:
             Tuple of (success, message)
         """
-
-        if not session.is_authenticated:
-            return False, "You must be logged in to unlike photos"
         assert session.user_id is not None
         if PhotoService.unlike_photo(session.user_id, photo_id):
             return True, "Photo unliked"
@@ -221,41 +212,12 @@ class PhotoController:
         Returns:
             Tuple of (success, message)
         """
-        if not session.is_authenticated:
-            return False, "You must be logged in to rate photos"
         assert session.user_id is not None
         try:
-            PhotoService.add_rating(session.user_id, photo_id, rating_value)
+            PhotoService.rate_photo(session.user_id, photo_id, rating_value)
             return True, "Rating submitted"
         except Exception as e:
             return False, f"Failed to submit rating: {e}"
-
-    @staticmethod
-    def has_liked(photo_id: int) -> bool:
-        """
-        Check if the current user has liked a specific photo.
-        Args:
-            photo_id: The ID of the photo to check.
-        Returns:
-            bool: True if the user has liked the photo, False otherwise.
-        """
-
-        if not session.is_authenticated:
-            return False
-        assert session.user_id is not None
-        return PhotoService.has_liked(session.user_id, photo_id)
-
-    @staticmethod
-    def count_likes(photo_id: int) -> int:
-        """
-        Get the total number of likes for a specific photo.
-        Args:
-            photo_id: The ID of the photo.
-        Returns:
-            int: The total number of likes for the photo.
-        """
-
-        return PhotoService.count_likes(photo_id)
 
     @staticmethod
     def get_liked_photos(user_id: Optional[int] = None) -> list:

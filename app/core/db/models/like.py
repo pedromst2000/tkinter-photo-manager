@@ -9,8 +9,9 @@ from sqlalchemy import (
     Integer,
     UniqueConstraint,
 )
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class LikeModel(Base):
@@ -66,95 +67,87 @@ class LikeModel(Base):
         }
 
     @classmethod
-    def like(cls, user_id: int, photo_id: int) -> dict | None:
+    def like(cls, session: Session, user_id: int, photo_id: int) -> dict | None:
         """
         Create a like relationship.
         Args:
+            session: Active SQLAlchemy session.
             user_id (int): The ID of the user liking the photo.
             photo_id (int): The ID of the photo being liked.
         Returns:
             dict | None: The new like entry, or None if already liked.
         """
-
-        with SessionLocal() as session:
-            with session.begin():
-                existing = (
-                    session.query(cls)
-                    .filter_by(userId=user_id, photoId=photo_id)
-                    .first()
-                )
-                if existing:
-                    return existing.to_dict()
-                obj = cls(userId=user_id, photoId=photo_id)
-                session.add(obj)
-                session.flush()
-                return obj.to_dict()
+        existing = (
+            session.query(cls).filter_by(userId=user_id, photoId=photo_id).first()
+        )
+        if existing:
+            return existing.to_dict()
+        obj = cls(userId=user_id, photoId=photo_id)
+        session.add(obj)
+        session.flush()
+        return obj.to_dict()
 
     @classmethod
-    def unlike(cls, user_id: int, photo_id: int) -> bool:
+    def unlike(cls, session: Session, user_id: int, photo_id: int) -> bool:
         """
         Remove a like relationship.
         Args:
+            session: Active SQLAlchemy session.
             user_id (int): The ID of the user unliking the photo.
             photo_id (int): The ID of the photo being unliked.
         Returns:
             bool: True if the like was removed, False if it didn't exist.
         """
-
-        with SessionLocal() as session:
-            with session.begin():
-                deleted = (
-                    session.query(cls)
-                    .filter_by(userId=user_id, photoId=photo_id)
-                    .delete()
-                )
-                return deleted > 0
+        deleted = (
+            session.query(cls).filter_by(userId=user_id, photoId=photo_id).delete()
+        )
+        return deleted > 0
 
     @classmethod
-    def has_liked(cls, user_id: int, photo_id: int) -> bool:
+    def has_liked(cls, session: Session, user_id: int, photo_id: int) -> bool:
         """
         Check whether a user has liked a photo.
 
         Args:
+            session: Active SQLAlchemy session.
             user_id (int): The ID of the user.
             photo_id (int): The ID of the photo.
 
         Returns:
             bool: True if the user has liked the photo, False otherwise.
         """
-        with SessionLocal() as session:
-            return (
-                session.query(cls).filter_by(userId=user_id, photoId=photo_id).first()
-                is not None
-            )
+        return (
+            session.query(cls).filter_by(userId=user_id, photoId=photo_id).first()
+            is not None
+        )
 
     @classmethod
-    def count_by_photo(cls, photo_id: int) -> int:
+    def count_by_photo(cls, session: Session, photo_id: int) -> int:
         """
         Count the number of likes for a given photo.
 
         Args:
+            session: Active SQLAlchemy session.
             photo_id (int): The ID of the photo.
 
         Returns:
             int: The number of likes for the photo.
         """
-        with SessionLocal() as session:
-            return session.query(cls).filter_by(photoId=photo_id).count()
+        return session.query(cls).filter_by(photoId=photo_id).count()
 
     @classmethod
-    def get_liked_photos(cls, user_id: int) -> list:
+    def get_liked_photos(cls, session: Session, user_id: int) -> list:
         """
         Get all photos liked by a user.
 
         Args:
+            session: Active SQLAlchemy session.
             user_id (int): The ID of the user.
 
         Returns:
             list[dict]: A list of liked photo entries.
         """
-        with SessionLocal() as session:
-            return [
-                like_obj.to_dict()
-                for like_obj in session.query(cls).filter_by(userId=user_id).all()
-            ]
+        return [
+            like_obj.to_dict()
+            for like_obj in session.query(cls).filter_by(userId=user_id).all()
+        ]

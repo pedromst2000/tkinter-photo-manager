@@ -9,8 +9,9 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class NotificationTypeModel(Base):
@@ -58,34 +59,79 @@ class NotificationTypeModel(Base):
         }
 
     @classmethod
-    def get_all(cls) -> list:
-        with SessionLocal() as session:
-            return [s.to_dict() for s in session.query(cls).order_by(cls.id).all()]
+    def get_all(cls, session: Session) -> list:
+        """
+        Retrieve all notification types from the database and return them as a list of dictionaries.
+
+        Args:
+            session: Active SQLAlchemy session.
+        Returns:
+            list: A list of dictionaries, each representing a notification type.
+        """
+
+        return [s.to_dict() for s in session.query(cls).order_by(cls.id).all()]
 
     @classmethod
-    def get_by_type(cls, type_key: str) -> dict | None:
-        with SessionLocal() as session:
-            s = session.query(cls).filter_by(type=type_key).first()
-            return s.to_dict() if s else None
+    def get_by_type(cls, session: Session, type_key: str) -> dict | None:
+        """
+        Retrieve a notification type by its type from the database.
+
+        Args:
+            session: Active SQLAlchemy session.
+            type_key: The type of the notification to retrieve.
+        Returns:
+            dict | None: A dictionary representing the notification type if found, otherwise None.
+        """
+
+        s = session.query(cls).filter_by(type=type_key).first()
+        return s.to_dict() if s else None
 
     @classmethod
-    def get_by_id(cls, id_key: int) -> dict | None:
-        with SessionLocal() as session:
-            s = session.query(cls).filter_by(id=id_key).first()
-            return s.to_dict() if s else None
+    def get_by_id(cls, session: Session, id_key: int) -> dict | None:
+        """
+        Retrieve a notification type by its ID from the database.
+
+        Args:
+            session: Active SQLAlchemy session.
+            id_key: The ID of the notification type to retrieve.
+        Returns:
+            dict | None: A dictionary representing the notification type if found, otherwise None.
+        """
+
+        s = session.query(cls).filter_by(id=id_key).first()
+        return s.to_dict() if s else None
 
     @classmethod
-    def is_enabled(cls, type_key: str) -> bool:
-        with SessionLocal() as session:
-            s = session.query(cls).filter_by(type=type_key).first()
-            return s.isEnabled if s else False
+    def is_enabled(cls, session: Session, type_key: str) -> bool:
+        """
+        Check if a notification type is enabled.
+
+        A notification type is considered enabled if it exists in the database and its isEnabled field is True.
+
+        Args:
+            session: Active SQLAlchemy session.
+            type_key: The type of the notification to check.
+        Returns:
+            bool: True if the notification type is enabled, False otherwise.
+        """
+
+        s = session.query(cls).filter_by(type=type_key).first()
+        return s.isEnabled if s else False
 
     @classmethod
-    def set_enabled(cls, type_key: str, enabled: bool) -> bool:
-        with SessionLocal() as session:
-            with session.begin():
-                s = session.query(cls).filter_by(type=type_key).first()
-                if s:
-                    s.isEnabled = enabled
-                    return True
+    def set_enabled(cls, session: Session, type_key: str, enabled: bool) -> bool:
+        """
+        Set the enabled status of a notification type.
+
+        Args:
+            session: Active SQLAlchemy session.
+            type_key: The type of the notification to update.
+            enabled: The new enabled status.
+        Returns:
+            bool: True if the notification type was found and updated, False otherwise.
+        """
+        s = session.query(cls).filter_by(type=type_key).first()
+        if s:
+            s.isEnabled = enabled
+            return True
         return False

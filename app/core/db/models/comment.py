@@ -9,8 +9,9 @@ from sqlalchemy import (
     Integer,
     String,
 )
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class CommentModel(Base):
@@ -69,39 +70,42 @@ class CommentModel(Base):
         }
 
     @classmethod
-    def get_all(cls) -> list:
+    def get_all(cls, session: Session) -> list:
         """
-        Retrieve all comments from the database and return them as a list of dictionaries.
+        Retrieve all comments from the database.
+
+        Args:
+            session: Active SQLAlchemy session.
 
         Returns:
             list: A list of dictionaries, each representing a comment.
         """
-        with SessionLocal() as session:
-            return [c.to_dict() for c in session.query(cls).all()]
+        return [c.to_dict() for c in session.query(cls).all()]
 
     @classmethod
-    def get_by_photo(cls, photo_id: int) -> list:
+    def get_by_photo(cls, session: Session, photo_id: int) -> list:
         """
         Retrieve all comments for a photo ordered by creation time (oldest first).
 
         Args:
+            session: Active SQLAlchemy session.
             photo_id (int): The photo ID.
 
         Returns:
             list: A list of comment dicts.
         """
-        with SessionLocal() as session:
-            return [
-                c.to_dict()
-                for c in session.query(cls)
-                .filter_by(photoId=photo_id)
-                .order_by(cls.createdAt)
-                .all()
-            ]
+        return [
+            c.to_dict()
+            for c in session.query(cls)
+            .filter_by(photoId=photo_id)
+            .order_by(cls.createdAt)
+            .all()
+        ]
 
     @classmethod
     def create(
         cls,
+        session: Session,
         authorId: int,
         comment: str,
         photoId: int,
@@ -110,27 +114,19 @@ class CommentModel(Base):
         Create a new comment in the database.
 
         Args:
+            session: Active SQLAlchemy session.
             authorId (int): The ID of the user who authored the comment.
-            comment (str): The content of the comment.
+            comment (str): The content of the comment (pre-validated).
             photoId (int): The ID of the photo the comment belongs to.
 
         Returns:
             dict: A dictionary representation of the newly created comment.
         """
-        # application-level validation: trim and validate content length
-        trimmed = comment.strip() if comment is not None else ""
-        if not trimmed:
-            raise ValueError("Comment must not be empty")
-        if len(trimmed) > 255:
-            raise ValueError("Comment must be at most 255 characters")
-
-        with SessionLocal() as session:
-            with session.begin():
-                obj: CommentModel = cls(
-                    authorId=authorId,
-                    comment=trimmed,
-                    photoId=photoId,
-                )
-                session.add(obj)
-                session.flush()
-                return obj.to_dict()
+        obj: CommentModel = cls(
+            authorId=authorId,
+            comment=comment,
+            photoId=photoId,
+        )
+        session.add(obj)
+        session.flush()
+        return obj.to_dict()

@@ -10,9 +10,9 @@ from sqlalchemy import (
     UniqueConstraint,
     desc,
 )
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class AvatarModel(Base):
@@ -62,79 +62,52 @@ class AvatarModel(Base):
         }
 
     @classmethod
-    def create(cls, user_id: int, avatar_path: str) -> dict:
+    def create(cls, session: Session, user_id: int, avatar_path: str) -> dict:
         """
         Create or update the avatar for a user. If an avatar exists it is updated in-place.
 
         Args:
+            session: Active SQLAlchemy session.
             user_id (int): ID of the user owning the avatar.
-            avatar_path (str): File path or URL of the avatar image.
+            avatar_path (str): File path or URL of the avatar image (pre-validated).
 
         Returns:
             dict: The created or updated avatar row as a dictionary.
         """
+        existing = (
+            session.query(cls)
+            .filter_by(userId=user_id)
+            .order_by(desc(cls.createdAt))
+            .first()
+        )
+        if existing:
+            existing.avatar = avatar_path
+            session.flush()
+            return existing.to_dict()
 
-        # validate avatar path
-        trimmed = avatar_path.strip() if avatar_path is not None else ""
-        if not trimmed:
-            raise ValueError("Avatar path must not be empty")
-        if len(trimmed) > 255:
-            raise ValueError("Avatar path must be at most 255 characters")
-
-        # upsert-like behavior with basic race handling
-        with SessionLocal() as session:
-            try:
-                with session.begin():
-                    existing = (
-                        session.query(cls)
-                        .filter_by(userId=user_id)
-                        .order_by(desc(cls.createdAt))
-                        .first()
-                    )
-                    if existing:
-                        existing.avatar = trimmed
-                        session.flush()
-                        return existing.to_dict()
-
-                    obj = cls(userId=user_id, avatar=trimmed)
-                    session.add(obj)
-                    session.flush()
-                    return obj.to_dict()
-            except IntegrityError:
-                # concurrent insert may cause unique constraint violation; try update path
-                session.rollback()
-                with session.begin():
-                    existing = (
-                        session.query(cls)
-                        .filter_by(userId=user_id)
-                        .order_by(desc(cls.createdAt))
-                        .first()
-                    )
-                    if existing:
-                        existing.avatar = trimmed
-                        session.flush()
-                        return existing.to_dict()
-                    # If still not found, re-raise
-                    raise
+        obj = cls(userId=user_id, avatar=avatar_path)
+        session.add(obj)
+        session.flush()
+        return obj.to_dict()
 
     @classmethod
-    def get_for_user(cls, user_id: int) -> dict | None:
+    def get_for_user(cls, session: Session, user_id: int) -> dict | None:
         """
         Return the user's active avatar as a dict, or None if not found.
 
         Args:
+            session: Active SQLAlchemy session.
             user_id (int): The ID of the user whose avatar is to be retrieved.
 
         Returns:
             dict or None: The primary avatar as returned by `to_dict()`, or None.
         """
-        with SessionLocal() as session:
-            row = (
-                session.query(cls)
-                .filter_by(userId=user_id)
-                .order_by(desc(cls.createdAt))
-                .first()
-            )
-            if row:
-                return row.to_dict()
-            return None
+        row = (
+            session.query(cls)
+            .filter_by(userId=user_id)
+            .order_by(desc(cls.createdAt))
+            .first()
+        )
+        if row:
+            return row.to_dict()
+        return None

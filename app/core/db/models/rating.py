@@ -10,8 +10,9 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class RatingModel(Base):
@@ -70,69 +71,60 @@ class RatingModel(Base):
         }
 
     @classmethod
-    def create(cls, user_id: int, photo_id: int, rating_value: int) -> dict:
+    def create(
+        cls, session: Session, user_id: int, photo_id: int, rating_value: int
+    ) -> dict:
         """
         Create or update a rating for a photo by a user.
 
         Args:
+            session: Active SQLAlchemy session.
             user_id (int): The ID of the user giving the rating.
             photo_id (int): The ID of the photo being rated.
-            rating_value (int): The rating value (1-5).
+            rating_value (int): The rating value (pre-validated 1-5).
         Returns:
             dict: The created or updated rating entry as a dictionary.
         """
-
-        # clamp rating
-        r = max(1, min(5, int(rating_value)))
-        with SessionLocal() as session:
-            with session.begin():
-                existing = (
-                    session.query(cls)
-                    .filter_by(userId=user_id, photoId=photo_id)
-                    .first()
-                )
-                if existing:
-                    existing.rating = r
-                    session.flush()
-                    return existing.to_dict()
-                obj = cls(userId=user_id, photoId=photo_id, rating=r)
-                session.add(obj)
-                session.flush()
-                return obj.to_dict()
+        existing = (
+            session.query(cls).filter_by(userId=user_id, photoId=photo_id).first()
+        )
+        if existing:
+            existing.rating = rating_value
+            session.flush()
+            return existing.to_dict()
+        obj = cls(userId=user_id, photoId=photo_id, rating=rating_value)
+        session.add(obj)
+        session.flush()
+        return obj.to_dict()
 
     @classmethod
-    def get_for_photo(cls, photo_id: int) -> list:
+    def get_for_photo(cls, session: Session, photo_id: int) -> list:
         """
         Retrieve all ratings for a given photo.
 
         Args:
+            session: Active SQLAlchemy session.
             photo_id (int): The ID of the photo for which to retrieve ratings.
 
         Returns:
             list: A list of dictionaries, each representing a rating for the photo.
         """
-
-        with SessionLocal() as session:
-            return [
-                r.to_dict()
-                for r in session.query(cls).filter_by(photoId=photo_id).all()
-            ]
+        return [
+            r.to_dict() for r in session.query(cls).filter_by(photoId=photo_id).all()
+        ]
 
     @classmethod
-    def get_average_for_photo(cls, photo_id: int) -> float:
+    def get_average_for_photo(cls, session: Session, photo_id: int) -> float:
         """
         Calculate the average rating for a given photo.
 
         Args:
+            session: Active SQLAlchemy session.
             photo_id (int): The ID of the photo for which to calculate the average rating.
         Returns:
             float: The average rating for the photo, rounded to one decimal place. Returns 0.0 if there are no ratings.
         """
-
-        with SessionLocal() as session:
-            avg = (
-                session.query(func.avg(cls.rating)).filter_by(photoId=photo_id).scalar()
-            )
-            if avg is None:
-                return 0.0
-            return round(float(avg), 1)
+        avg = session.query(func.avg(cls.rating)).filter_by(photoId=photo_id).scalar()
+        if avg is None:
+            return 0.0
+        return round(float(avg), 1)  # Round to one decimal place for better readability

@@ -10,9 +10,9 @@ from sqlalchemy import (
     UniqueConstraint,
     desc,
 )
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class PhotoImageModel(Base):
@@ -64,99 +64,72 @@ class PhotoImageModel(Base):
         }
 
     @classmethod
-    def create(cls, photo_id: int, image: str) -> dict:
+    def create(cls, session: Session, photo_id: int, image: str) -> dict:
         """
-        Create a new PhotoImageModel record in the database.
+        Create or update a PhotoImageModel record.
 
         Args:
+            session: Active SQLAlchemy session.
             photo_id (int): The ID of the photo to which this image belongs.
-            image (str): The file path or URL of the image.
+            image (str): The file path or URL of the image (pre-validated).
+
         Returns:
-            dict: A dictionary representation of the created PhotoImageModel instance.
+            dict: A dictionary representation of the created/updated PhotoImageModel instance.
         """
+        existing = (
+            session.query(cls)
+            .filter_by(photoId=photo_id)
+            .order_by(desc(cls.createdAt))
+            .first()
+        )
+        if existing:
+            existing.image = image
+            session.flush()
+            return existing.to_dict()
 
-        # validate image path
-        trimmed = image.strip() if image is not None else ""
-        if not trimmed:
-            raise ValueError("Image path must not be empty")
-        if len(trimmed) > 255:
-            raise ValueError("Image path must be at most 255 characters")
-
-        with SessionLocal() as session:
-            try:
-                with session.begin():
-                    # If an image row already exists for this photo, update it in-place
-                    existing = (
-                        session.query(cls)
-                        .filter_by(photoId=photo_id)
-                        .order_by(desc(cls.createdAt))
-                        .first()
-                    )
-                    if existing:
-                        existing.image = trimmed
-                        session.flush()
-                        return existing.to_dict()
-
-                    obj = cls(photoId=photo_id, image=trimmed)
-                    session.add(obj)
-                    session.flush()
-                    return obj.to_dict()
-            except IntegrityError:
-                # concurrent insert may cause unique constraint violation; try update path
-                session.rollback()
-                with session.begin():
-                    existing = (
-                        session.query(cls)
-                        .filter_by(photoId=photo_id)
-                        .order_by(desc(cls.createdAt))
-                        .first()
-                    )
-                    if existing:
-                        existing.image = trimmed
-                        session.flush()
-                        return existing.to_dict()
-                    raise
+        obj = cls(photoId=photo_id, image=image)
+        session.add(obj)
+        session.flush()
+        return obj.to_dict()
 
     @classmethod
-    def get_for_photo(cls, photo_id: int) -> dict | None:
+    def get_for_photo(cls, session: Session, photo_id: int) -> dict | None:
         """
         Return the single image record for a photo as a dict, or None.
-        Photos in this app have only one image; this returns that image row.
 
         Args:
+            session: Active SQLAlchemy session.
             photo_id (int): The ID of the photo for which to retrieve the image.
 
         Returns:
             dict | None: A dictionary representation of the image record, or None if not found.
         """
-        with SessionLocal() as session:
-            row = (
-                session.query(cls)
-                .filter_by(photoId=photo_id)
-                .order_by(desc(cls.createdAt))
-                .first()
-            )
-            return row.to_dict() if row else None
+        row = (
+            session.query(cls)
+            .filter_by(photoId=photo_id)
+            .order_by(desc(cls.createdAt))
+            .first()
+        )
+        return row.to_dict() if row else None
 
     @classmethod
-    def get_primary_for_photo(cls, photo_id: int) -> str | None:
+    def get_primary_for_photo(cls, session: Session, photo_id: int) -> str | None:
         """
-        Return the primary image for a photo as a string, or None.
-        Photos in this app have only one image; this returns that image row.
+        Return the primary image path for a photo, or None.
 
         Args:
+            session: Active SQLAlchemy session.
             photo_id (int): The ID of the photo for which to retrieve the primary image.
 
         Returns:
             str | None: The file path or URL of the primary image, or None if not found.
         """
-        with SessionLocal() as session:
-            row = (
-                session.query(cls)
-                .filter_by(photoId=photo_id)
-                .order_by(desc(cls.createdAt))
-                .first()
-            )
-            if row:
-                return row.image
-            return None
+        row = (
+            session.query(cls)
+            .filter_by(photoId=photo_id)
+            .order_by(desc(cls.createdAt))
+            .first()
+        )
+        if row:
+            return row.image
+        return None

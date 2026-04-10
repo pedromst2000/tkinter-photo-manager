@@ -11,10 +11,9 @@ from sqlalchemy import (
     Integer,
     String,
 )
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
-
-from .avatar import AvatarModel
+from app.core.db.engine import Base
 
 
 class UserModel(Base):
@@ -68,51 +67,41 @@ class UserModel(Base):
     @property
     def role(self) -> str:
         """
-        Get the user's role as a string.
+        Get the user's role as a string via ORM relationship.
 
         Returns:
             str: The user's role ('admin', 'regular', 'unsigned').
         """
-
         if self.roleId is None:
             return "unsigned"
         try:
             if getattr(self, "role_rel", None) is not None:
-                return (
-                    self.role_rel.role
-                    if self.role_rel and getattr(self.role_rel, "role", None)
-                    else "unsigned"
-                )
+                return getattr(self.role_rel, "role", "unsigned") or "unsigned"
         except Exception:
-            # fall back to explicit query if relationship access fails
             pass
-
-        from db.models.role import RoleModel
-
-        with SessionLocal() as session:
-            r = session.query(RoleModel).filter_by(id=self.roleId).first()
-            return r.role if r else "unsigned"
+        return "unsigned"
 
     def to_dict(self) -> dict:
         """
         Convert the UserModel instance to a dictionary.
+        Uses ORM relationships for avatar and role (requires active session).
 
         Returns:
             dict: A dictionary representation of the UserModel instance.
         """
-        # include avatar via related AvatarModel (lazy import to avoid circular deps)
         avatar_path = None
         try:
-            from .avatar import AvatarModel
+            if getattr(self, "avatar_rel", None) is not None:
+                from app.utils.file_utils import resolve_avatar_path
 
-            avatar = AvatarModel.get_for_user(self.id)
-            from app.utils.file_utils import resolve_avatar_path
-
-            avatar_path = resolve_avatar_path(avatar["avatar"] if avatar else None)
+                avatar_path = resolve_avatar_path(self.avatar_rel.avatar)
         except Exception:
+            pass
+        if avatar_path is None:
             from app.utils.file_utils import _DEFAULT_AVATAR
 
             avatar_path = _DEFAULT_AVATAR
+
         return {
             "id": self.id,
             "username": self.username,
@@ -127,47 +116,51 @@ class UserModel(Base):
         }
 
     @classmethod
-    def get_all(cls) -> list:
+    def get_all(cls, session: Session) -> list:
         """
-        Retrieve all users from the database and return them as a list of dictionaries.
+        Retrieve all users from the database.
+
+        Args:
+            session: Active SQLAlchemy session.
 
         Returns:
             list: A list of dictionaries, each representing a user.
         """
-        with SessionLocal() as session:
-            return [u.to_dict() for u in session.query(cls).all()]
+        return [u.to_dict() for u in session.query(cls).all()]
 
     @classmethod
-    def get_password_hashes(cls) -> list:
+    def get_password_hashes(cls, session: Session) -> list:
         """
         Retrieve only the password column for all users.
 
+        Args:
+            session: Active SQLAlchemy session.
+
         Returns:
-            list: A list of password strings (hashed or plaintext depending on storage).
+            list: A list of password strings.
         """
-        with SessionLocal() as session:
-            rows = session.query(cls.password).all()
-            # rows are tuples like [(password,), ...]
-            return [r[0] for r in rows if r and r[0] is not None]
+        rows = session.query(cls.password).all()  # type: ignore[call-overload]
+        return [r[0] for r in rows if r and r[0] is not None]
 
     @classmethod
-    def get_by_id(cls, userID: int) -> dict | None:
+    def get_by_id(cls, session: Session, userID: int) -> dict | None:
         """
         Retrieve a user by their ID.
 
         Args:
+            session: Active SQLAlchemy session.
             userID (int): The ID of the user to retrieve.
 
         Returns:
             dict | None: A dictionary representation of the user if found, otherwise None.
         """
-        with SessionLocal() as session:
-            u = session.query(cls).filter_by(id=userID).first()
-            return u.to_dict() if u else None
+        u = session.query(cls).filter_by(id=userID).first()
+        return u.to_dict() if u else None
 
     @classmethod
     def create(
         cls,
+        session: Session,
         username: str,
         email: str,
         password: str,
@@ -178,257 +171,172 @@ class UserModel(Base):
         Create a new user in the database.
 
         Args:
+            session: Active SQLAlchemy session.
             username (str): The username of the user.
             email (str): The email address of the user.
-            password (str): The password of the user.
-            avatar (str, optional): The avatar image path.
+            password (str): The hashed password of the user.
             roleId (int, optional): The ID of the user's role.
             isBlocked (bool, optional): Whether the user is blocked.
 
         Returns:
             dict: A dictionary representation of the newly created user.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                user: UserModel = cls(
-                    username=username,
-                    email=email,
-                    password=password,
-                    roleId=roleId,
-                    isBlocked=isBlocked,
-                )
-                session.add(user)
-                session.flush()
-                # ensure the user has an avatar row (DER: 1:1 mandatory)
-                try:
-                    from app.utils.file_utils import _DEFAULT_AVATAR
-
-                    # create avatar in the same transaction; if it already exists, ignore
-                    avatar_obj = AvatarModel(userId=user.id, avatar=_DEFAULT_AVATAR)
-                    session.add(avatar_obj)
-                    session.flush()
-                except Exception:
-                    # do not fail user creation if avatar creation has issues
-                    pass
-                return user.to_dict()
+        user: UserModel = cls(
+            username=username,
+            email=email,
+            password=password,
+            roleId=roleId,
+            isBlocked=isBlocked,
+        )
+        session.add(user)
+        session.flush()
+        return user.to_dict()
 
     @classmethod
-    def update(cls, updated: dict) -> dict:
+    def update(cls, session: Session, updated: dict) -> dict:
         """
         Update an existing user in the database.
 
         Args:
+            session: Active SQLAlchemy session.
             updated (dict): A dictionary containing the updated user information.
 
         Returns:
             dict: A dictionary representation of the updated user.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                u: UserModel = session.query(cls).filter_by(id=updated["id"]).first()
-                if u:
-                    ALLOWED = {"username", "email", "password", "roleId", "isBlocked"}
-                    for key, value in updated.items():
-                        if key in ALLOWED:
-                            setattr(u, key, value)
+        u: UserModel = session.query(cls).filter_by(id=updated["id"]).first()
+        if u:
+            ALLOWED = {"username", "email", "password", "roleId", "isBlocked"}
+            for key, value in updated.items():
+                if key in ALLOWED:
+                    setattr(u, key, value)
         return updated
 
     @classmethod
-    def get_by_email(cls, email: str) -> dict | None:
+    def get_by_email(cls, session: Session, email: str) -> dict | None:
         """
         Retrieve a user by their email address.
 
         Args:
+            session: Active SQLAlchemy session.
             email (str): The email address to search for.
 
         Returns:
             dict | None: A dictionary representation of the user if found, otherwise None.
         """
-        with SessionLocal() as session:
-            u = session.query(cls).filter(cls.email.ilike(email)).first()
-            return u.to_dict() if u else None
+        u = session.query(cls).filter(cls.email.ilike(email)).first()
+        return u.to_dict() if u else None
 
     @classmethod
-    def get_by_username(cls, username: str) -> dict | None:
+    def get_by_username(cls, session: Session, username: str) -> dict | None:
         """
         Retrieve a user by their username (case-insensitive).
 
         Args:
+            session: Active SQLAlchemy session.
             username (str): The username to search for.
 
         Returns:
             dict | None: A dictionary representation of the user if found, otherwise None.
         """
-        with SessionLocal() as session:
-            u = session.query(cls).filter(cls.username.ilike(username)).first()
-            return u.to_dict() if u else None
+        u = session.query(cls).filter(cls.username.ilike(username)).first()
+        return u.to_dict() if u else None
 
     @classmethod
-    def email_exists(cls, email: str) -> bool:
+    def email_exists(cls, session: Session, email: str) -> bool:
         """
         Check if an email already exists in the database.
 
         Args:
+            session: Active SQLAlchemy session.
             email (str): The email address to check.
 
         Returns:
             bool: True if the email exists, False otherwise.
         """
-        with SessionLocal() as session:
-            return session.query(cls).filter(cls.email.ilike(email)).count() > 0
+        return session.query(cls).filter(cls.email.ilike(email)).count() > 0
 
     @classmethod
-    def username_exists(cls, username: str) -> bool:
+    def username_exists(cls, session: Session, username: str) -> bool:
         """
         Check if a username already exists in the database (case-insensitive).
 
         Args:
+            session: Active SQLAlchemy session.
             username (str): The username to check.
 
         Returns:
             bool: True if the username exists, False otherwise.
         """
-        with SessionLocal() as session:
-            return session.query(cls).filter(cls.username.ilike(username)).count() > 0
+        return session.query(cls).filter(cls.username.ilike(username)).count() > 0
 
     @classmethod
-    def get_by_role(cls, role: str) -> list:
-        """
-        Retrieve all users with a specific role.
-
-        Args:
-            role (str): The role to filter by ('admin', 'regular', 'unsigned').
-
-        Returns:
-            list: A list of dictionaries representing users with that role.
-        """
-        from db.models.role import RoleModel
-
-        with SessionLocal() as session:
-            role_row = session.query(RoleModel).filter_by(role=role).first()
-            if not role_row:
-                return []
-            return [
-                u.to_dict()
-                for u in session.query(cls).filter_by(roleId=role_row.id).all()
-            ]
-
-    @classmethod
-    def get_blocked_users(cls) -> list:
+    def get_blocked_users(cls, session: Session) -> list:
         """
         Retrieve all blocked users.
+
+        Args:
+            session: Active SQLAlchemy session.
 
         Returns:
             list: A list of dictionaries representing blocked users.
         """
-        with SessionLocal() as session:
-            return [
-                u.to_dict() for u in session.query(cls).filter_by(isBlocked=True).all()
-            ]
+        return [u.to_dict() for u in session.query(cls).filter_by(isBlocked=True).all()]
 
     @classmethod
-    def update_avatar(cls, user_id: int, avatar_path: str) -> bool:
-        """
-        Update a user's avatar.
-
-        Args:
-            user_id (int): The user's ID.
-            avatar_path (str): The new avatar path.
-
-        Returns:
-            bool: True if updated successfully, False otherwise.
-        """
-        # create a new AvatarModel row and mark it primary
-        try:
-            from .avatar import AvatarModel
-
-            AvatarModel.create(
-                user_id=user_id, avatar_path=avatar_path, is_primary=True
-            )
-            return True
-        except Exception:
-            return False
-
-    @classmethod
-    def update_password(cls, user_id: int, hashed_password: str) -> bool:
+    def update_password(
+        cls, session: Session, user_id: int, hashed_password: str
+    ) -> bool:
         """
         Update a user's password.
 
         Args:
+            session: Active SQLAlchemy session.
             user_id (int): The user's ID.
             hashed_password (str): The new hashed password.
 
         Returns:
             bool: True if updated successfully, False otherwise.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                u = session.query(cls).filter_by(id=user_id).first()
-                if u:
-                    u.password = hashed_password
-                    return True
+        u = session.query(cls).filter_by(id=user_id).first()
+        if u:
+            u.password = hashed_password
+            return True
         return False
 
     @classmethod
-    def update_role(cls, user_id: int, role: str) -> bool:
-        """
-        Update a user's role by role name.
-
-        Args:
-            user_id (int): The user's ID.
-            role (str): The new role name ('admin', 'regular', 'unsigned').
-
-        Returns:
-            bool: True if updated successfully, False otherwise.
-        """
-        from db.models.role import RoleModel
-
-        with SessionLocal() as session:
-            with session.begin():
-                role_row = session.query(RoleModel).filter_by(role=role).first()
-                if not role_row:
-                    return False
-                u = session.query(cls).filter_by(id=user_id).first()
-                if u:
-                    u.roleId = role_row.id
-                    return True
-        return False
-
-    @classmethod
-    def set_blocked(cls, user_id: int, is_blocked: bool) -> bool:
+    def set_blocked(cls, session: Session, user_id: int, is_blocked: bool) -> bool:
         """
         Set a user's blocked status.
 
         Args:
+            session: Active SQLAlchemy session.
             user_id (int): The user's ID.
             is_blocked (bool): The blocked status.
 
         Returns:
             bool: True if updated successfully, False otherwise.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                u = session.query(cls).filter_by(id=user_id).first()
-                if u:
-                    u.isBlocked = is_blocked
-                    return True
+        u = session.query(cls).filter_by(id=user_id).first()
+        if u:
+            u.isBlocked = is_blocked
+            return True
         return False
 
     @classmethod
-    def delete(cls, user_id: int) -> bool:
+    def delete(cls, session: Session, user_id: int) -> bool:
         """
         Delete a user from the database.
 
         Args:
+            session: Active SQLAlchemy session.
             user_id (int): The user's ID.
 
         Returns:
             bool: True if deleted successfully, False otherwise.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                u = session.query(cls).filter_by(id=user_id).first()
-                if u:
-                    session.delete(u)
-                    return True
+        u = session.query(cls).filter_by(id=user_id).first()
+        if u:
+            session.delete(u)
+            return True
         return False

@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import CheckConstraint, Column, DateTime, Integer, String
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class RoleModel(Base):
@@ -44,27 +45,28 @@ class RoleModel(Base):
         }
 
     @classmethod
-    def get_all(cls) -> list:
+    def get_all(cls, session: Session) -> list:
         """
         Retrieve all roles from the database and return them as a list of dictionaries.
+
+        Args:
+            session: Active SQLAlchemy session.
 
         Returns:
             list: A list of dictionaries, each representing a role.
         """
-        with SessionLocal() as session:
-            return [r.to_dict() for r in session.query(cls).all()]
+        return [r.to_dict() for r in session.query(cls).all()]
 
     @classmethod
-    def get_by_name(cls, role_name: str) -> dict | None:
+    def get_by_name(cls, session: Session, role_name: str) -> dict | None:
         """
         Retrieve a role by its name from the database.
 
         Args:
+            session: Active SQLAlchemy session.
             role_name (str): The name of the role to retrieve.
         Returns:
             dict | None: A dictionary representing the role if found, otherwise None.
         """
-
-        with SessionLocal() as session:
-            r = session.query(cls).filter(cls.role.ilike(role_name)).first()
-            return r.to_dict() if r else None
+        r = session.query(cls).filter(cls.role.ilike(role_name)).first()
+        return r.to_dict() if r else None

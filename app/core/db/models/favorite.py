@@ -9,8 +9,9 @@ from sqlalchemy import (
     Integer,
     UniqueConstraint,
 )
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class FavoriteModel(Base):
@@ -65,84 +66,81 @@ class FavoriteModel(Base):
         }
 
     @classmethod
-    def get_all(cls) -> list:
+    def get_all(cls, session: Session) -> list:
         """
-        Retrieve all favorite album entries from the database and return them as a list of dictionaries.
+        Retrieve all favorite album entries from the database.
+
+        Args:
+            session: Active SQLAlchemy session.
 
         Returns:
             list: A list of dictionaries, each representing a favorite album entry.
         """
-        with SessionLocal() as session:
-            return [f.to_dict() for f in session.query(cls).all()]
+        return [f.to_dict() for f in session.query(cls).all()]
 
     @classmethod
-    def create(cls, albumId: int, userId: int) -> dict:
+    def create(cls, session: Session, albumId: int, userId: int) -> dict:
         """
         Create a new favorite album entry in the database.
 
         Args:
+            session: Active SQLAlchemy session.
             albumId (int): The ID of the album being favorited.
             userId (int): The ID of the user who is favoriting the album.
 
         Returns:
             dict: A dictionary representation of the newly created favorite album entry.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                # idempotent create: return existing if already favorited
-                existing = (
-                    session.query(cls).filter_by(albumId=albumId, userId=userId).first()
-                )
-                if existing:
-                    return existing.to_dict()
-                obj: FavoriteModel = cls(albumId=albumId, userId=userId)
-                session.add(obj)
-                session.flush()
-                return obj.to_dict()
+        existing = session.query(cls).filter_by(albumId=albumId, userId=userId).first()
+        if existing:
+            return existing.to_dict()
+        obj: FavoriteModel = cls(albumId=albumId, userId=userId)
+        session.add(obj)
+        session.flush()
+        return obj.to_dict()
 
     @classmethod
-    def get_users_by_album(cls, albumId: int) -> list:
+    def get_users_by_album(cls, session: Session, albumId: int) -> list:
         """
         Return the IDs of all users who have favorited a given album.
 
         Args:
+            session: Active SQLAlchemy session.
             albumId (int): The album ID to query favorites for.
 
         Returns:
             list[int]: A list of userId values.
         """
-        with SessionLocal() as session:
-            rows = session.query(cls).filter(cls.albumId == albumId).all()
-            return [row.userId for row in rows]
+        rows = session.query(cls).filter(cls.albumId == albumId).all()
+        return [row.userId for row in rows]
 
     @classmethod
-    def get_by_user(cls, userId: int) -> list:
+    def get_by_user(cls, session: Session, userId: int) -> list:
         """Return favorite rows for a user as dicts.
 
         Args:
+            session: Active SQLAlchemy session.
             userId (int): The user ID to query favorites for.
 
         Returns:
             list[dict]: A list of favorite entries as dictionaries.
         """
-        with SessionLocal() as session:
-            rows = session.query(cls).filter(cls.userId == userId).all()
-            return [r.to_dict() for r in rows]
+        rows = session.query(cls).filter(cls.userId == userId).all()
+        return [r.to_dict() for r in rows]
 
     @classmethod
-    def delete_for_user(cls, albumId: int, userId: int) -> bool:
+    def delete_for_user(cls, session: Session, albumId: int, userId: int) -> bool:
         """
         Delete a favorite for a user.
 
         Args:
+            session: Active SQLAlchemy session.
             albumId (int): The ID of the album to remove from favorites.
             userId (int): The ID of the user whose favorite is being removed.
 
         Returns:
             bool: True if the favorite was deleted, False otherwise.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                q = session.query(cls).filter_by(albumId=albumId, userId=userId)
-                count = q.delete()
-                return count > 0
+        q = session.query(cls).filter_by(albumId=albumId, userId=userId)
+        count = q.delete()
+        return count > 0

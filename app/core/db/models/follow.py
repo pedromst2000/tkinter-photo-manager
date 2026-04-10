@@ -9,8 +9,9 @@ from sqlalchemy import (
     Integer,
     UniqueConstraint,
 )
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class FollowModel(Base):
@@ -67,97 +68,92 @@ class FollowModel(Base):
         }
 
     @classmethod
-    def follow(cls, follower_id: int, followed_id: int) -> dict | None:
+    def follow(
+        cls, session: Session, follower_id: int, followed_id: int
+    ) -> dict | None:
         """
         Create a follow relationship.
 
         Args:
+            session: Active SQLAlchemy session.
             follower_id (int): The ID of the user doing the following.
             followed_id (int): The ID of the user being followed.
 
         Returns:
             dict | None: The new follow entry, or None if already following.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                existing = (
-                    session.query(cls)
-                    .filter_by(followerId=follower_id, followedId=followed_id)
-                    .first()
-                )
-                if existing:
-                    return None
-                obj = cls(followerId=follower_id, followedId=followed_id)
-                session.add(obj)
-                session.flush()
-                return obj.to_dict()
+        existing = (
+            session.query(cls)
+            .filter_by(followerId=follower_id, followedId=followed_id)
+            .first()
+        )
+        if existing:
+            return None
+        obj = cls(followerId=follower_id, followedId=followed_id)
+        session.add(obj)
+        session.flush()
+        return obj.to_dict()
 
     @classmethod
-    def unfollow(cls, follower_id: int, followed_id: int) -> bool:
+    def unfollow(cls, session: Session, follower_id: int, followed_id: int) -> bool:
         """
         Remove a follow relationship.
 
         Args:
+            session: Active SQLAlchemy session.
             follower_id (int): The ID of the user doing the unfollowing.
             followed_id (int): The ID of the user being unfollowed.
 
         Returns:
             bool: True if the relationship was removed, False if it didn't exist.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                deleted = (
-                    session.query(cls)
-                    .filter_by(followerId=follower_id, followedId=followed_id)
-                    .delete()
-                )
-                return deleted > 0
+        deleted = (
+            session.query(cls)
+            .filter_by(followerId=follower_id, followedId=followed_id)
+            .delete()
+        )
+        return deleted > 0
 
     @classmethod
-    def is_following(cls, follower_id: int, followed_id: int) -> bool:
+    def is_following(cls, session: Session, follower_id: int, followed_id: int) -> bool:
         """
         Check whether follower_id is following followed_id.
 
         Returns:
             bool: True if the follow relationship exists.
         """
-        with SessionLocal() as session:
-            return (
-                session.query(cls)
-                .filter_by(followerId=follower_id, followedId=followed_id)
-                .first()
-            ) is not None
+        return (
+            session.query(cls)
+            .filter_by(followerId=follower_id, followedId=followed_id)
+            .first()
+        ) is not None
 
     @classmethod
-    def get_followers(cls, user_id: int) -> list:
+    def get_followers(cls, session: Session, user_id: int) -> list:
         """
         Return all follow entries where followed_id == user_id (people who follow this user).
 
         Returns:
             list[dict]: FollowModel dicts with followerID field.
         """
-        with SessionLocal() as session:
-            return [
-                f.to_dict()
-                for f in session.query(cls).filter_by(followedId=user_id).all()
-            ]
+        return [
+            f.to_dict() for f in session.query(cls).filter_by(followedId=user_id).all()
+        ]
 
     @classmethod
-    def get_following(cls, user_id: int) -> list:
+    def get_following(cls, session: Session, user_id: int) -> list:
         """
         Return all follow entries where follower_id == user_id (users this user follows).
 
         Returns:
             list[dict]: FollowModel dicts with followedID field.
         """
-        with SessionLocal() as session:
-            return [
-                f.to_dict()
-                for f in session.query(cls).filter_by(followerId=user_id).all()
-            ]
+        return [
+            f.to_dict() for f in session.query(cls).filter_by(followerId=user_id).all()
+        ]
 
     @classmethod
-    def count_followers(cls, user_id: int) -> int:
+    def count_followers(cls, session: Session, user_id: int) -> int:
         """
         Return the number of users following user_id.
 
@@ -167,11 +163,10 @@ class FollowModel(Base):
         Returns:
             int: The number of followers.
         """
-        with SessionLocal() as session:
-            return session.query(cls).filter_by(followedId=user_id).count()
+        return session.query(cls).filter_by(followedId=user_id).count()
 
     @classmethod
-    def count_following(cls, user_id: int) -> int:
+    def count_following(cls, session: Session, user_id: int) -> int:
         """
         Return the number of users that user_id follows.
 
@@ -181,5 +176,4 @@ class FollowModel(Base):
         Returns:
             int: The number of users that user_id follows.
         """
-        with SessionLocal() as session:
-            return session.query(cls).filter_by(followerId=user_id).count()
+        return session.query(cls).filter_by(followerId=user_id).count()

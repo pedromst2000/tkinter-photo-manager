@@ -5,8 +5,9 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class ReportReasonModel(Base):
@@ -47,21 +48,25 @@ class ReportReasonModel(Base):
         return {"id": self.id, "label": self.label}
 
     @classmethod
-    def get_labels(cls) -> list[str]:
-        """Return a list of report reason labels ordered by id."""
-        with SessionLocal() as session:
-            return [r.label for r in session.query(cls).order_by(cls.id).all()]
+    def get_labels(cls, session: Session) -> list[str]:
+        """
+        Return a list of report reason labels ordered by id.
+
+        Args:
+            session: Active SQLAlchemy session.
+        """
+        return [r.label for r in session.query(cls).order_by(cls.id).all()]
 
     @classmethod
-    def get_by_label(cls, label: str) -> dict | None:
+    def get_by_label(cls, session: Session, label: str) -> dict | None:
         """
         Return the report reason row matching the given label, or None if not found.
 
         Args:
+            session: Active SQLAlchemy session.
             label: The reason label to look up.
         Returns:
             dict | None: The report reason row as a dict if found, else None.
         """
-        with SessionLocal() as session:
-            r = session.query(cls).filter_by(label=label).first()
-            return r.to_dict() if r else None
+        r = session.query(cls).filter_by(label=label).first()
+        return r.to_dict() if r else None

@@ -1,7 +1,8 @@
 from typing import Optional, Tuple
 
+from app.core.db.engine import SessionLocal
+from app.core.db.models.user import UserModel
 from app.core.services.auth_service import AuthService
-from app.core.services.photo_service import PhotoService
 from app.core.services.user_service import UserService
 from app.core.state.session import session
 from app.utils.log_utils import log_issue
@@ -31,7 +32,8 @@ class ProfileController:
         """
         if user_id is None:
             return session.user_data
-        return UserService.get_user_by_id(user_id)
+        with SessionLocal() as db:
+            return UserModel.get_by_id(db, user_id)
 
     @staticmethod
     def get_profile_stats(user_id: int) -> dict:
@@ -44,10 +46,7 @@ class ProfileController:
         Returns:
             dict with 'follower_count' and 'photo_count'.
         """
-        return {
-            "follower_count": UserService.count_followers(user_id),
-            "photo_count": PhotoService.count_photos_by_user(user_id),
-        }
+        return UserService.get_profile_stats(user_id)
 
     @staticmethod
     def update_avatar(avatar_filename: str) -> Tuple[bool, str]:
@@ -60,8 +59,6 @@ class ProfileController:
         Returns:
             Tuple of (success, message)
         """
-        if not session.is_authenticated:
-            return False, "You must be logged in to change your avatar"
         assert session.user_id is not None
 
         if not avatar_filename:
@@ -89,8 +86,6 @@ class ProfileController:
         Returns:
             Tuple of (success, message)
         """
-        if not session.is_authenticated:
-            return False, "You must be logged in to change your password"
         assert session.user_id is not None
 
         if not current_password or not new_password or not confirm_password:
@@ -118,11 +113,9 @@ class ProfileController:
         Returns:
             bool: True if refreshed successfully.
         """
-        if not session.is_authenticated:
-            return False
         assert session.user_id is not None
-
-        user = UserService.get_user_by_id(session.user_id)
+        with SessionLocal() as db:
+            user = UserModel.get_by_id(db, session.user_id)
         if user:
             session.login(user, is_new_user=session.is_new_user)
             return True

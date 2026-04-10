@@ -1,5 +1,8 @@
 from typing import List, Tuple
 
+from app.core.db.engine import SessionLocal
+from app.core.db.models.category import CategoryModel
+from app.core.db.models.user import UserModel
 from app.core.services.auth_service import AuthService
 from app.core.services.photo_service import PhotoService
 from app.core.services.user_service import UserService
@@ -51,8 +54,6 @@ class AdminController:
         Returns:
             list: List of user dictionaries with essential fields.
         """
-        if not session.is_admin:
-            return []
         return UserService.get_user_list_for_admin()
 
     @staticmethod
@@ -63,9 +64,8 @@ class AdminController:
         Returns:
             list: List of all user dictionaries.
         """
-        if not session.is_admin:
-            return []
-        return UserService.get_all_users()
+        with SessionLocal() as db:
+            return UserModel.get_all(db)
 
     @staticmethod
     def change_user_role(username: str, new_role: str) -> Tuple[bool, str]:
@@ -79,9 +79,6 @@ class AdminController:
         Returns:
             Tuple of (success, message)
         """
-        if not session.is_admin:
-            return False, "Admin privileges required"
-
         if not username or not new_role:
             return False, "Username and role are required"
 
@@ -103,9 +100,6 @@ class AdminController:
         Returns:
             Tuple of (success, message)
         """
-        if not session.is_admin:
-            return False, "Admin privileges required"
-
         if not username:
             return False, "Username is required"
 
@@ -131,9 +125,6 @@ class AdminController:
         Returns:
             Tuple of (success, message)
         """
-        if not session.is_admin:
-            return False, "Admin privileges required"
-
         if not username:
             return False, "Username is required"
 
@@ -155,16 +146,12 @@ class AdminController:
         Returns:
             Tuple of (success, message)
         """
-        if not session.is_admin:
-            return False, "Admin privileges required"
-
         # Prevent admin from deleting themselves
         if user_id == session.user_id:
             return False, "You cannot delete yourself"
 
         if UserService.delete_user(user_id):
             return True, "User has been deleted"
-
         return False, "Failed to delete user"
 
     @staticmethod
@@ -178,8 +165,6 @@ class AdminController:
         Returns:
             list: List of user dictionaries with the specified role.
         """
-        if not session.is_admin:
-            return []
         return UserService.get_users_by_role(role)
 
     @staticmethod
@@ -194,8 +179,6 @@ class AdminController:
         Returns:
             list: Filtered list of user dicts (admin users excluded).
         """
-        if not session.is_admin:
-            return []
         return UserService.filter_users(username, email)
 
     @staticmethod
@@ -206,7 +189,8 @@ class AdminController:
         Returns:
             list: List of category name strings.
         """
-        return PhotoService.get_category_names()
+        with SessionLocal() as db:
+            return [c["category"] for c in CategoryModel.get_all(db)]
 
     @staticmethod
     def add_category(category_name: str) -> Tuple[bool, str]:
@@ -219,14 +203,9 @@ class AdminController:
         Returns:
             Tuple of (success, message)
         """
-        if not session.is_admin:
-            return False, "Admin privileges required"
         if not category_name or not category_name.strip():
             return False, "Category name is required"
-        if PhotoService.category_exists(category_name.strip()):
-            return False, "The category already exists, please try again!"
-        PhotoService.create_category(category_name.strip())
-        return True, "The category was added successfully!"
+        return PhotoService.add_category(category_name.strip())
 
     @staticmethod
     def delete_category(category_name: str) -> Tuple[bool, str]:
@@ -239,8 +218,6 @@ class AdminController:
         Returns:
             Tuple of (success, message)
         """
-        if not session.is_admin:
-            return False, "Admin privileges required"
         return PhotoService.delete_category_with_photos(category_name)
 
     @staticmethod
@@ -251,6 +228,4 @@ class AdminController:
         Returns:
             list: List of dicts with contactID, title, message, username.
         """
-        if not session.is_admin:
-            return []
         return UserService.get_contacts_with_usernames()

@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import CheckConstraint, Column, DateTime, Integer, String
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class CategoryModel(Base):
@@ -50,52 +51,42 @@ class CategoryModel(Base):
         }
 
     @classmethod
-    def get_all(cls) -> list:
+    def get_all(cls, session: Session) -> list:
         """
-        Retrieve all categories from the database and return them as a list of dictionaries.
+        Retrieve all categories from the database.
+
+        Args:
+            session: Active SQLAlchemy session.
 
         Returns:
             list: A list of dictionaries, each representing a category.
         """
-        with SessionLocal() as session:
-            return [c.to_dict() for c in session.query(cls).all()]
+        return [c.to_dict() for c in session.query(cls).all()]
 
     @classmethod
-    def create(cls, category: str) -> dict:
+    def create(cls, session: Session, category: str) -> dict:
         """
         Create a new category in the database.
 
         Args:
-            category (str): The name of the category to create.
+            session: Active SQLAlchemy session.
+            category (str): The name of the category to create (pre-validated).
 
         Returns:
             dict: A dictionary representation of the newly created category.
         """
-        # application-level validation: trim and ensure non-empty and within length
-        trimmed = category.strip() if category is not None else ""
-        if not trimmed:
-            raise ValueError("Category name must not be empty")
-        if len(trimmed) > 25:
-            raise ValueError("Category name must be at most 25 characters")
-
-        with SessionLocal() as session:
-            with session.begin():
-                obj: CategoryModel = cls(category=trimmed)
-                session.add(obj)
-                session.flush()
-                return obj.to_dict()
+        obj: CategoryModel = cls(category=category)
+        session.add(obj)
+        session.flush()
+        return obj.to_dict()
 
     @classmethod
-    def delete(cls, category: str) -> None:
+    def delete(cls, session: Session, category: str) -> None:
         """
         Delete a category from the database by name.
 
         Args:
+            session: Active SQLAlchemy session.
             category (str): The name of the category to delete.
         """
-        trimmed = category.strip() if category is not None else ""
-        if not trimmed:
-            return
-        with SessionLocal() as session:
-            with session.begin():
-                session.query(cls).filter_by(category=trimmed).delete()
+        session.query(cls).filter_by(category=category).delete()

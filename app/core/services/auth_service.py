@@ -3,7 +3,12 @@ from typing import Optional, Tuple
 
 import bcrypt
 
-from app.core.db.models import RoleModel, UserModel
+from app.core.db.engine import SessionLocal
+from app.core.db.models.avatar import AvatarModel
+from app.core.db.models.role import RoleModel
+from app.core.db.models.user import UserModel
+
+_DEFAULT_AVATAR = "assets/images/profile_avatars/default_avatar.png"
 
 
 class AuthService:
@@ -12,6 +17,16 @@ class AuthService:
 
     Handles user authentication, registration, and credential validation.
     All password hashing/verification is done here.
+
+    Business rules enforced in this service:
+    - Passwords must be at least 7 characters and contain a mix of character types.
+    - Usernames must be unique (case-insensitive) and contain only allowed characters.
+    - Emails must be unique and follow a valid format.
+    - Admins cannot register through the public registration endpoint.
+        - When registering, users are assigned the "unsigned" role by default and a default avatar.
+        - Password availability check compares against all stored password hashes to prevent duplicates.
+        - Authentication verifies email existence and password correctness using bcrypt.
+        - Password changes require current password verification and new password validation.
     """
 
     @staticmethod
@@ -26,19 +41,22 @@ class AuthService:
         Returns:
             dict: The user data if authentication is successful, None otherwise.
         """
-        user = UserModel.get_by_email(email)
-        if user is None:
-            return None
+        with SessionLocal() as session:
+            user = UserModel.get_by_email(session, email)
+            if user is None:
+                return None
 
-        # Verify password using bcrypt
-        if bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8")):
-            return user
-        return None  # Authentication failed
+            # Verify password using bcrypt
+            if bcrypt.checkpw(
+                password.encode("utf-8"), user["password"].encode("utf-8")
+            ):
+                return user
+            return None  # Authentication failed
 
     @staticmethod
     def register_user(username: str, email: str, password: str) -> dict:
         """
-        Register a new user with hashed password.
+        Register a new user with hashed password and default avatar.
 
         Args:
             username: The username for the new user.
@@ -56,16 +74,22 @@ class AuthService:
             password.encode("utf-8"), bcrypt.gensalt()
         ).decode("utf-8")
 
-        unsigned_role = RoleModel.get_by_name("unsigned")
-        # Create user in database (avatar is stored in avatars table)
-        user = UserModel.create(
-            username=username,
-            email=email,
-            password=hashed_password,
-            roleId=unsigned_role["id"] if unsigned_role else None,
-            isBlocked=False,
-        )
-        return user
+        with SessionLocal() as session:
+            with session.begin():
+                unsigned_role = RoleModel.get_by_name(session, "unsigned")
+                # Create user in database
+                user = UserModel.create(
+                    session,
+                    username=username,
+                    email=email,
+                    password=hashed_password,
+                    roleId=unsigned_role["id"] if unsigned_role else None,
+                    isBlocked=False,
+                )
+                # Create default avatar (was previously inside UserModel.create)
+                AvatarModel.create(session, user["id"], _DEFAULT_AVATAR)
+            # Re-fetch after commit so the returned dict includes the avatar
+            return UserModel.get_by_id(session, user["id"])  # type: ignore[return-value]
 
     @staticmethod
     def validate_email_format(email: str) -> bool:
@@ -127,7 +151,8 @@ class AuthService:
         Returns:
             bool: True if email is available, False if already taken.
         """
-        return not UserModel.email_exists(email)
+        with SessionLocal() as session:
+            return not UserModel.email_exists(session, email)
 
     @staticmethod
     def is_username_available(username: str) -> bool:
@@ -140,7 +165,8 @@ class AuthService:
         Returns:
             bool: True if username is available, False if already taken.
         """
-        return not UserModel.username_exists(username)
+        with SessionLocal() as session:
+            return not UserModel.username_exists(session, username)
 
     @staticmethod
     def is_password_available(password: str) -> bool:
@@ -154,7 +180,8 @@ class AuthService:
             bool: True if password is available (not taken), False if already taken.
         """
         try:
-            stored_passwords = UserModel.get_password_hashes()
+            with SessionLocal() as session:
+                stored_passwords = UserModel.get_password_hashes(session)
             password_encoded = password.encode("utf-8")
 
             for stored in stored_passwords:
@@ -281,7 +308,9 @@ class AuthService:
         hashed: str = bcrypt.hashpw(
             new_password.encode("utf-8"), bcrypt.gensalt()
         ).decode("utf-8")
-        return UserModel.update_password(user_id, hashed)
+        with SessionLocal() as session:
+            with session.begin():
+                return UserModel.update_password(session, user_id, hashed)
 
     @staticmethod
     def verify_password(user_id: int, password: str) -> bool:
@@ -295,7 +324,8 @@ class AuthService:
         Returns:
             bool: True if password matches, False otherwise.
         """
-        user = UserModel.get_by_id(user_id)
+        with SessionLocal() as session:
+            user = UserModel.get_by_id(session, user_id)
         if user is None:
             return False
         return bcrypt.checkpw(

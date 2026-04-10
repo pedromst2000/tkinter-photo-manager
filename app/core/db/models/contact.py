@@ -10,8 +10,9 @@ from sqlalchemy import (
     Integer,
     String,
 )
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class ContactModel(Base):
@@ -67,53 +68,52 @@ class ContactModel(Base):
         }
 
     @classmethod
-    def get_all(cls) -> list:
+    def get_all(cls, session: Session) -> list:
         """
-        Retrieve all contact messages from the database and return them as a list of dictionaries.
+        Retrieve all contact messages from the database.
+
+        Args:
+            session: Active SQLAlchemy session.
 
         Returns:
             list: A list of dictionaries, each representing a contact message.
         """
-        with SessionLocal() as session:
-            return [c.to_dict() for c in session.query(cls).all()]
+        return [c.to_dict() for c in session.query(cls).all()]
 
     @classmethod
-    def create(cls, title: str, message: str, userId: int) -> dict:
+    def create(cls, session: Session, title: str, message: str, userId: int) -> dict:
         """
-        Create a new contact message in the database with the given title, message, and userId.
-        Validates that the title is unique (case-insensitive, trimmed) and that required fields are not empty.
+        Create a new contact message in the database.
 
         Args:
-            title (str): The title of the contact message (trimmed by service/controller).
-            message (str): The content of the contact message (trimmed by service/controller).
+            session: Active SQLAlchemy session.
+            title (str): The title of the contact message (pre-validated).
+            message (str): The content of the contact message (pre-validated).
             userId (int): The ID of the user who submitted the contact message.
 
         Returns:
             dict: A dictionary representation of the newly created contact message.
-
-        Raises:
-            ValueError: If a contact with the same title already exists.
         """
-        try:
-            with SessionLocal() as session:
-                with session.begin():
-                    # Duplicate-title check inside the same write transaction (atomic read-then-write)
-                    normalized = title.strip().lower()
-                    already_exists = session.query(
-                        session.query(cls)
-                        .filter(func.lower(func.trim(cls.title)) == normalized)
-                        .exists()
-                    ).scalar()
-                    if already_exists:
-                        raise ValueError("Duplicate title")
-                    obj: ContactModel = cls(title=title, message=message, userId=userId)
-                    session.add(obj)
-                    session.flush()
-                    return obj.to_dict()
-        except ValueError:
-            raise  # Re-raise validation errors
-        except Exception as e:
-            from app.utils.log_utils import log_issue
+        obj: ContactModel = cls(title=title, message=message, userId=userId)
+        session.add(obj)
+        session.flush()
+        return obj.to_dict()
 
-            log_issue("ContactModel.create failed during database operation", exc=e)
-            raise
+    @classmethod
+    def title_exists(cls, session: Session, title: str) -> bool:
+        """
+        Check whether a contact with this title already exists (case-insensitive).
+
+        Args:
+            session: Active SQLAlchemy session.
+            title (str): The title to check.
+
+        Returns:
+            bool: True if a matching title exists.
+        """
+        normalized = title.strip().lower()
+        return session.query(
+            session.query(cls)
+            .filter(func.lower(func.trim(cls.title)) == normalized)
+            .exists()
+        ).scalar()

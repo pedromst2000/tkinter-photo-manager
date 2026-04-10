@@ -11,8 +11,9 @@ from sqlalchemy import (
     Integer,
     String,
 )
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class NotificationModel(Base):
@@ -109,88 +110,87 @@ class NotificationModel(Base):
         }
 
     @classmethod
-    def get_all(cls) -> list:
+    def get_all(cls, session: Session) -> list:
         """
-        Retrieve all notifications from the database and return them as a list of dictionaries.
+        Retrieve all notifications from the database.
+
+        Args:
+            session: Active SQLAlchemy session.
 
         Returns:
             list: A list of dictionaries, each representing a notification.
         """
-        with SessionLocal() as session:
-            return [n.to_dict() for n in session.query(cls).all()]
+        return [n.to_dict() for n in session.query(cls).all()]
 
     @classmethod
-    def get_by_user(cls, user_id: int) -> list:
+    def get_by_user(cls, session: Session, user_id: int) -> list:
         """
         Retrieve all notifications for a specific user (newest first).
 
         Args:
+            session: Active SQLAlchemy session.
             user_id (int): The recipient user ID.
 
         Returns:
             list: A list of notification dicts.
         """
-        with SessionLocal() as session:
-            return [
-                n.to_dict()
-                for n in session.query(cls)
-                .filter_by(recipientId=user_id)
-                .order_by(cls.createdAt.desc())
-                .all()
-            ]
+        return [
+            n.to_dict()
+            for n in session.query(cls)
+            .filter_by(recipientId=user_id)
+            .order_by(cls.createdAt.desc())
+            .all()
+        ]
 
     @classmethod
-    def get_unread_count(cls, user_id: int) -> int:
+    def get_unread_count(cls, session: Session, user_id: int) -> int:
         """
         Return the number of unread notifications for a user.
 
         Args:
+            session: Active SQLAlchemy session.
             user_id (int): The recipient user ID.
 
         Returns:
             int: Count of unread notifications.
         """
-        with SessionLocal() as session:
-            return (
-                session.query(cls).filter_by(recipientId=user_id, isRead=False).count()
-            )
+        return session.query(cls).filter_by(recipientId=user_id, isRead=False).count()
 
     @classmethod
-    def mark_read(cls, notID: int) -> bool:
+    def mark_read(cls, session: Session, notID: int) -> bool:
         """
         Mark a single notification as read.
 
         Args:
+            session: Active SQLAlchemy session.
             notID (int): The notification ID.
 
         Returns:
             bool: True if updated successfully.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                n = session.query(cls).filter_by(id=notID).first()
-                if n:
-                    n.isRead = True
-                    return True
+        n = session.query(cls).filter_by(id=notID).first()
+        if n:
+            n.isRead = True
+            return True
         return False
 
     @classmethod
-    def mark_all_read(cls, user_id: int) -> None:
+    def mark_all_read(cls, session: Session, user_id: int) -> None:
         """
         Mark all notifications for a user as read.
 
         Args:
+            session: Active SQLAlchemy session.
             user_id (int): The recipient user ID.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                session.query(cls).filter_by(recipientId=user_id, isRead=False).update(
-                    {"isRead": True}
-                )
+        session.query(cls).filter_by(recipientId=user_id, isRead=False).update(
+            {"isRead": True}
+        )
 
     @classmethod
     def create(
         cls,
+        session: Session,
         type_id: int,
         message: str,
         user_id: int,
@@ -203,41 +203,27 @@ class NotificationModel(Base):
         Create a new notification.
 
         Args:
+            session: Active SQLAlchemy session.
             type_id (int): FK to notification_types.id.
-            message (str): Human-readable notification message.
+            message (str): Human-readable notification message (pre-validated).
             user_id (int): The recipient user ID.
-            sender_id (int): Who triggered the notification (required).
-            photo_id (int, optional): FK to photos.id  set when the notification targets a photo.
-            album_id (int, optional): FK to albuns.id — set when the notification targets an album.
-            comment_id (int, optional): FK to comments.id — set when the notification targets a comment.
+            sender_id (int): Who triggered the notification.
+            photo_id (int, optional): FK to photos.id.
+            album_id (int, optional): FK to albuns.id.
+            comment_id (int, optional): FK to comments.id.
 
         Returns:
             dict: A dictionary representation of the newly created notification.
         """
-        m = message.strip() if message is not None else ""
-        if sender_id is None:
-            raise ValueError("sender_id is required")
-        if not m:
-            raise ValueError("Notification message must not be empty")
-        if len(m) > 255:
-            raise ValueError("Notification message must be at most 255 characters")
-
-        from db.models.notification_types import NotificationTypeModel
-
-        if not NotificationTypeModel.get_by_id(type_id):
-            raise ValueError(f"Unknown notification type id: {type_id}")
-
-        with SessionLocal() as session:
-            with session.begin():
-                obj = cls(
-                    typeId=type_id,
-                    message=m,
-                    recipientId=user_id,
-                    senderId=sender_id,
-                    photoId=photo_id,
-                    albumId=album_id,
-                    commentId=comment_id,
-                )
-                session.add(obj)
-                session.flush()
-                return obj.to_dict()
+        obj = cls(
+            typeId=type_id,
+            message=message,
+            recipientId=user_id,
+            senderId=sender_id,
+            photoId=photo_id,
+            albumId=album_id,
+            commentId=comment_id,
+        )
+        session.add(obj)
+        session.flush()
+        return obj.to_dict()

@@ -10,8 +10,9 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class AlbumModel(Base):
@@ -69,106 +70,99 @@ class AlbumModel(Base):
         }
 
     @classmethod
-    def get_all(cls) -> list:
+    def get_all(cls, session: Session) -> list:
         """
-        Retrieve all albums from the database and return them as a list of dictionaries.
+        Retrieve all albums from the database.
+
+        Args:
+            session: Active SQLAlchemy session.
+
         Returns:
             list: A list of dictionaries, each representing an album.
         """
-
-        with SessionLocal() as session:
-            return [a.to_dict() for a in session.query(cls).all()]
+        return [a.to_dict() for a in session.query(cls).all()]
 
     @classmethod
-    def create(cls, name: str, creatorId: int) -> dict:
+    def create(cls, session: Session, name: str, creatorId: int) -> dict:
         """
         Create a new album in the database.
 
         Args:
-            name (str): The name of the album.
+            session: Active SQLAlchemy session.
+            name (str): The name of the album (pre-validated).
             creatorId (int): The ID of the user creating the album.
 
         Returns:
             dict: A dictionary representation of the newly created album.
         """
-        # model-level defensive trim/validation (service should already validate)
-        trimmed = name.strip() if name is not None else ""
-        if not trimmed:
-            raise ValueError("Album name must not be empty")
-        if len(trimmed) > 50:
-            raise ValueError("Album name must be at most 50 characters")
-
-        with SessionLocal() as session:
-            with session.begin():
-                obj: AlbumModel = cls(name=trimmed, creatorId=creatorId)
-                session.add(obj)
-                session.flush()
-                return obj.to_dict()
+        obj: AlbumModel = cls(name=name, creatorId=creatorId)
+        session.add(obj)
+        session.flush()
+        return obj.to_dict()
 
     @classmethod
-    def update(cls, updated: dict) -> dict:
+    def update(cls, session: Session, updated: dict) -> dict:
         """
         Update an existing album in the database.
 
         Args:
-            updated (dict): A dictionary containing the updated album information, including "albumID" and "name".
+            session: Active SQLAlchemy session.
+            updated (dict): A dictionary containing the updated album information, including "id" and "name".
+
         Returns:
             dict: A dictionary representation of the updated album.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                a: AlbumModel = session.query(cls).filter_by(id=updated["id"]).first()
-                if a:
-                    a.name = updated["name"]
+        a: AlbumModel = session.query(cls).filter_by(id=updated["id"]).first()
+        if a:
+            a.name = updated["name"]
         return updated
 
     @classmethod
-    def get_by_id(cls, album_id: int) -> dict | None:
+    def get_by_id(cls, session: Session, album_id: int) -> dict | None:
         """
         Retrieve an album by its ID.
 
         Args:
+            session: Active SQLAlchemy session.
             album_id (int): The ID of the album to retrieve.
 
         Returns:
             dict | None: A dictionary representation of the album if found, otherwise None.
         """
-        with SessionLocal() as session:
-            a = session.query(cls).filter_by(id=album_id).first()
-            return a.to_dict() if a else None
+        a = session.query(cls).filter_by(id=album_id).first()
+        return a.to_dict() if a else None
 
     @classmethod
-    def get_by_creator(cls, creator_id: int) -> list:
+    def get_by_creator(cls, session: Session, creator_id: int) -> list:
         """
         Retrieve all albums created by a specific user.
 
         Args:
+            session: Active SQLAlchemy session.
             creator_id (int): The ID of the user who created the albums.
 
         Returns:
             list: A list of dictionaries representing the user's albums.
         """
-        with SessionLocal() as session:
-            return [
-                a.to_dict()
-                for a in session.query(cls).filter_by(creatorId=creator_id).all()
-            ]
+        return [
+            a.to_dict()
+            for a in session.query(cls).filter_by(creatorId=creator_id).all()
+        ]
 
     @classmethod
-    def delete(cls, album_id: int) -> bool:
+    def delete(cls, session: Session, album_id: int) -> bool:
         """
         Delete an album from the database by its ID.
 
         Args:
+            session: Active SQLAlchemy session.
             album_id (int): The ID of the album to delete.
 
         Returns:
             bool: True if deleted successfully, False otherwise.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                a = session.query(cls).filter_by(id=album_id).first()
-                if a:
-                    session.delete(a)
-                    return True
+        a = session.query(cls).filter_by(id=album_id).first()
+        if a:
+            session.delete(a)
+            return True
         return False

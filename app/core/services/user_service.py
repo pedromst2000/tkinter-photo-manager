@@ -1,77 +1,50 @@
-from typing import Optional
-
-from app.core.db.models import ContactModel, FollowModel, UserModel
+from app.core.db.engine import SessionLocal
+from app.core.db.models.album import AlbumModel
+from app.core.db.models.avatar import AvatarModel
+from app.core.db.models.contact import ContactModel
+from app.core.db.models.follow import FollowModel
+from app.core.db.models.photo import PhotoModel
+from app.core.db.models.role import RoleModel
+from app.core.db.models.user import UserModel
 
 
 class UserService:
     """
     Service class for user management business logic.
 
-    Handles user profile operations, avatar changes, and user administration.
+    Business rules enforced in this service:
+    - User listing for admin management excludes admin users and returns only essential fields.
+    - Avatar updates create a new avatar record and associate it with the user.
+    - Role changes validate that the new role is a valid assignable role.
+    - Blocking/unblocking users checks current status to prevent redundant operations.
+    - User filtering by username/email is case-insensitive and excludes admin users.
+    - Contact messages are checked for duplicate titles before creation.
+    - Follow/unfollow operations check for existing relationships to prevent duplicates or errors.
+    - When retrieving followers/following, full user profiles are returned for display purposes.
+    - All methods that modify data enforce necessary validation and business rules.
     """
 
     @staticmethod
-    def get_user_by_id(user_id: int) -> Optional[dict]:
+    def get_profile_stats(user_id: int) -> dict:
         """
-        Get a user's complete information by their ID.
+        Get profile statistics combining follower count and photo count.
 
-        Args:
-            user_id: The ID of the user.
-
-        Returns:
-            dict or None: The user data if found, None otherwise.
+        Combines FollowModel, AlbumModel, and PhotoModel in one session —
+        a real use-case representing the data needed for the profile page.
         """
-        return UserModel.get_by_id(user_id)
+        with SessionLocal() as session:
+            follower_count = FollowModel.count_followers(session, user_id)
+            albums = AlbumModel.get_by_creator(session, user_id)
+            photo_count = sum(
+                len(PhotoModel.get_by_album(session, a["id"])) for a in albums
+            )
+        return {"follower_count": follower_count, "photo_count": photo_count}
 
     @staticmethod
-    def get_user_by_email(email: str) -> Optional[dict]:
-        """
-        Get a user's complete information by their email.
-
-        Args:
-            email: The email address to search for.
-
-        Returns:
-            dict or None: The user data if found, None otherwise.
-        """
-        return UserModel.get_by_email(email)
-
-    @staticmethod
-    def get_user_by_username(username: str) -> Optional[dict]:
-        """
-        Get a user's complete information by their username.
-
-        Args:
-            username: The username to search for.
-
-        Returns:
-            dict or None: The user data if found, None otherwise.
-        """
-        return UserModel.get_by_username(username)
-
-    @staticmethod
-    def get_user_id_by_email(email: str) -> Optional[int]:
-        """
-        Get only the user ID from an email address.
-
-        Args:
-            email: The email address to search for.
-
-        Returns:
-            int or None: The user ID if found, None otherwise.
-        """
-        user = UserModel.get_by_email(email)
-        return user["id"] if user else None
-
-    @staticmethod
-    def get_all_users() -> list:
-        """
-        Get all users (admin function).
-
-        Returns:
-            list: List of all user dictionaries.
-        """
-        return UserModel.get_all()
+    def delete_user(user_id: int) -> bool:
+        with SessionLocal() as session:
+            with session.begin():
+                return UserModel.delete(session, user_id)
 
     @staticmethod
     def get_user_list_for_admin() -> list:
@@ -82,18 +55,19 @@ class UserService:
         Returns:
             list: List of user dicts with userID, username, email, role, avatar, isBlocked.
         """
-        return [
-            {
-                "id": user["id"],
-                "username": user["username"],
-                "email": user["email"],
-                "role": user["role"],
-                "avatar": user["avatar"],
-                "isBlocked": user["isBlocked"],
-            }
-            for user in UserModel.get_all()
-            if user["role"] != "admin"
-        ]
+        with SessionLocal() as session:
+            return [
+                {
+                    "id": user["id"],
+                    "username": user["username"],
+                    "email": user["email"],
+                    "role": user["role"],
+                    "avatar": user["avatar"],
+                    "isBlocked": user["isBlocked"],
+                }
+                for user in UserModel.get_all(session)
+                if user["role"] != "admin"
+            ]
 
     @staticmethod
     def update_avatar(user_id: int, avatar_filename: str) -> bool:
@@ -108,7 +82,10 @@ class UserService:
             bool: True if updated successfully, False otherwise.
         """
         avatar_path = f"assets/images/profile_avatars/{avatar_filename}"
-        return UserModel.update_avatar(user_id, avatar_path)
+        with SessionLocal() as session:
+            with session.begin():
+                result = AvatarModel.create(session, user_id, avatar_path)
+        return result is not None
 
     @staticmethod
     def change_role(username: str, new_role: str) -> bool:
@@ -129,10 +106,16 @@ class UserService:
         if new_role not in VALID_ROLES:
             raise ValueError(f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
 
-        user = UserModel.get_by_username(username)
-        if user:
-            return UserModel.update_role(user["id"], new_role)
-        return False
+        with SessionLocal() as session:
+            user = UserModel.get_by_username(session, username)
+            if not user:
+                return False
+            role = RoleModel.get_by_name(session, new_role)
+            if not role:
+                return False
+            with session.begin():
+                UserModel.update(session, {**user, "roleId": role["id"]})
+        return True
 
     @staticmethod
     def block_user(username: str) -> bool:
@@ -145,12 +128,14 @@ class UserService:
         Returns:
             bool: True if blocked successfully, False otherwise.
         """
-        user = UserModel.get_by_username(username)
-        if not user:
-            return False
-        if user["isBlocked"]:
-            raise ValueError(f'"{username}" is already blocked.')
-        return UserModel.set_blocked(user["id"], True)
+        with SessionLocal() as session:
+            user = UserModel.get_by_username(session, username)
+            if not user:
+                return False
+            if user["isBlocked"]:
+                raise ValueError(f'"{username}" is already blocked.')
+            with session.begin():
+                return UserModel.set_blocked(session, user["id"], True)
 
     @staticmethod
     def unblock_user(username: str) -> bool:
@@ -163,12 +148,14 @@ class UserService:
         Returns:
             bool: True if unblocked successfully, False otherwise.
         """
-        user = UserModel.get_by_username(username)
-        if not user:
-            return False
-        if not user["isBlocked"]:
-            raise ValueError(f'"{username}" is already unblocked.')
-        return UserModel.set_blocked(user["id"], False)
+        with SessionLocal() as session:
+            user = UserModel.get_by_username(session, username)
+            if not user:
+                return False
+            if not user["isBlocked"]:
+                raise ValueError(f'"{username}" is already unblocked.')
+            with session.begin():
+                return UserModel.set_blocked(session, user["id"], False)
 
     @staticmethod
     def is_user_blocked(user_id: int) -> bool:
@@ -181,7 +168,8 @@ class UserService:
         Returns:
             bool: True if user is blocked, False otherwise.
         """
-        user = UserModel.get_by_id(user_id)
+        with SessionLocal() as session:
+            user = UserModel.get_by_id(session, user_id)
         return user["isBlocked"] if user else False
 
     @staticmethod
@@ -195,20 +183,13 @@ class UserService:
         Returns:
             list: List of user dictionaries with the specified role.
         """
-        return UserModel.get_by_role(role)
-
-    @staticmethod
-    def delete_user(user_id: int) -> bool:
-        """
-        Delete a user from the database.
-
-        Args:
-            user_id: The user's ID.
-
-        Returns:
-            bool: True if deleted successfully, False otherwise.
-        """
-        return UserModel.delete(user_id)
+        with SessionLocal() as session:
+            role_obj = RoleModel.get_by_name(session, role)
+            if not role_obj:
+                return []
+            return [
+                u for u in UserModel.get_all(session) if u["roleId"] == role_obj["id"]
+            ]
 
     @staticmethod
     def filter_users(username: str, email: str) -> list:
@@ -223,7 +204,8 @@ class UserService:
         Returns:
             list: Filtered list of user dictionaries.
         """
-        users = [u for u in UserModel.get_all() if u["role"] != "admin"]
+        with SessionLocal() as session:
+            users = [u for u in UserModel.get_all(session) if u["role"] != "admin"]
 
         if username:
             users = [
@@ -243,20 +225,21 @@ class UserService:
         Returns:
             list: List of dicts with contactID, title, message, username.
         """
-        contacts = ContactModel.get_all()
-        if not contacts:
-            return []
-        return [
-            {
-                "id": c["id"],
-                "title": c["title"],
-                "message": c["message"],
-                "username": (UserModel.get_by_id(c["userId"]) or {}).get(
-                    "username", "Unknown"
-                ),
-            }
-            for c in contacts
-        ]
+        with SessionLocal() as session:
+            contacts = ContactModel.get_all(session)
+            if not contacts:
+                return []
+            return [
+                {
+                    "id": c["id"],
+                    "title": c["title"],
+                    "message": c["message"],
+                    "username": (UserModel.get_by_id(session, c["userId"]) or {}).get(
+                        "username", "Unknown"
+                    ),
+                }
+                for c in contacts
+            ]
 
     # ── Follow / Unfollow ────────────────────────────────────────────────────
 
@@ -264,7 +247,6 @@ class UserService:
     def follow_user(follower_id: int, followed_id: int) -> bool:
         """
         Make follower_id follow followed_id.
-        Updates the followers counter on the followed user.
 
         Args:
             follower_id: The ID of the user doing the following.
@@ -273,16 +255,15 @@ class UserService:
         Returns:
             bool: True if the follow was created, False if already following.
         """
-        result = FollowModel.follow(follower_id, followed_id)
-        if result is None:
-            return False  # already following
-        return True
+        with SessionLocal() as session:
+            with session.begin():
+                result = FollowModel.follow(session, follower_id, followed_id)
+        return result is not None
 
     @staticmethod
     def unfollow_user(follower_id: int, followed_id: int) -> bool:
         """
         Make follower_id unfollow followed_id.
-        Updates the followers counter on the followed user.
 
         Args:
             follower_id: The ID of the user doing the unfollowing.
@@ -291,17 +272,9 @@ class UserService:
         Returns:
             bool: True if the relationship was removed, False if it didn't exist.
         """
-        return FollowModel.unfollow(follower_id, followed_id)
-
-    @staticmethod
-    def is_following(follower_id: int, followed_id: int) -> bool:
-        """
-        Check whether follower_id is currently following followed_id.
-
-        Returns:
-            bool: True if the follow relationship exists.
-        """
-        return FollowModel.is_following(follower_id, followed_id)
+        with SessionLocal() as session:
+            with session.begin():
+                return FollowModel.unfollow(session, follower_id, followed_id)
 
     @staticmethod
     def get_followers(user_id: int) -> list:
@@ -311,13 +284,14 @@ class UserService:
         Returns:
             list[dict]: User dicts (from UserModel) for each follower.
         """
-        follows = FollowModel.get_followers(user_id)
-        result = []
-        for f in follows:
-            user = UserModel.get_by_id(f["followerId"])
-            if user:
-                result.append(user)
-        return result
+        with SessionLocal() as session:
+            follows = FollowModel.get_followers(session, user_id)
+            result = []
+            for f in follows:
+                user = UserModel.get_by_id(session, f["followerId"])
+                if user:
+                    result.append(user)
+            return result
 
     @staticmethod
     def get_following(user_id: int) -> list:
@@ -327,33 +301,14 @@ class UserService:
         Returns:
             list[dict]: User dicts (from UserModel) for each followed user.
         """
-        follows = FollowModel.get_following(user_id)
-        result = []
-        for f in follows:
-            user = UserModel.get_by_id(f["followedId"])
-            if user:
-                result.append(user)
-        return result
-
-    @staticmethod
-    def count_followers(user_id: int) -> int:
-        """
-        Return the number of users following user_id (live count from FollowModel).
-
-        Returns:
-            int: Follower count.
-        """
-        return FollowModel.count_followers(user_id)
-
-    @staticmethod
-    def count_following(user_id: int) -> int:
-        """
-        Return the number of users that user_id follows (live count from FollowModel).
-
-        Returns:
-            int: Following count.
-        """
-        return FollowModel.count_following(user_id)
+        with SessionLocal() as session:
+            follows = FollowModel.get_following(session, user_id)
+            result = []
+            for f in follows:
+                user = UserModel.get_by_id(session, f["followedId"])
+                if user:
+                    result.append(user)
+            return result
 
     @staticmethod
     def create_contact(title: str, message: str, userId: int) -> dict:
@@ -367,5 +322,14 @@ class UserService:
 
         Returns:
             dict: The created contact message as a dictionary.
+
+        Raises:
+            ValueError: If a message with the same title already exists.
         """
-        return ContactModel.create(title=title, message=message, userId=userId)
+        with SessionLocal() as session:
+            if ContactModel.title_exists(session, title):
+                raise ValueError("A message with this title already exists")
+            with session.begin():
+                return ContactModel.create(
+                    session, title=title, message=message, userId=userId
+                )

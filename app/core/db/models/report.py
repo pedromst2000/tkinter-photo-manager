@@ -8,8 +8,9 @@ from sqlalchemy import (
     Index,
     Integer,
 )
+from sqlalchemy.orm import Session
 
-from app.core.db.engine import Base, SessionLocal
+from app.core.db.engine import Base
 
 
 class ReportModel(Base):
@@ -62,7 +63,7 @@ class ReportModel(Base):
     )
 
     def to_dict(self) -> dict:
-        """Return the report as a dict"""
+        """Return the report as a dict."""
         return {
             "id": self.id,
             "reporterId": self.reporterId,
@@ -74,20 +75,21 @@ class ReportModel(Base):
         }
 
     @classmethod
-    def get_all(cls) -> list[dict]:
+    def get_all(cls, session: Session) -> list[dict]:
         """
         Return all reports as a list of dicts.
 
+        Args:
+            session: Active SQLAlchemy session.
         Returns:
             list[dict]: List of report dicts.
         """
-
-        with SessionLocal() as session:
-            return [r.to_dict() for r in session.query(cls).order_by(cls.id).all()]
+        return [r.to_dict() for r in session.query(cls).order_by(cls.id).all()]
 
     @classmethod
     def create(
         cls,
+        session: Session,
         reporter_id: int,
         reason_id: int,
         photo_id: int | None = None,
@@ -97,55 +99,51 @@ class ReportModel(Base):
         Create a new report against a photo or comment.
 
         Args:
+            session: Active SQLAlchemy session (caller manages the transaction).
             reporter_id: The ID of the user submitting the report.
             reason_id: The ID of the report reason (foreign key to report_reasons).
             photo_id: The ID of the photo being reported (if applicable).
             comment_id: The ID of the comment being reported (if applicable).
         Returns:
             dict: The created report as a dict.
-        Raises:
-            ValueError: If validation fails (e.g. invalid reason_id, both photo_id and comment_id provided, etc.)
         """
-        with SessionLocal() as session:
-            with session.begin():
-                obj = cls(
-                    reporterId=reporter_id,
-                    reasonId=reason_id,
-                    photoId=photo_id,
-                    commentId=comment_id,
-                )
-                session.add(obj)
-                session.flush()
-                return obj.to_dict()
+        obj = cls(
+            reporterId=reporter_id,
+            reasonId=reason_id,
+            photoId=photo_id,
+            commentId=comment_id,
+        )
+        session.add(obj)
+        session.flush()
+        return obj.to_dict()
 
     @classmethod
-    def get_by_id(cls, report_id: int) -> dict | None:
+    def get_by_id(cls, session: Session, report_id: int) -> dict | None:
         """
         Get a single report by its ID.
 
         Args:
+            session: Active SQLAlchemy session.
             report_id: The ID of the report to retrieve.
         Returns:
             dict | None: The report as a dict if found, or None if not found.
         """
-        with SessionLocal() as session:
-            obj = session.query(cls).filter(cls.id == report_id).first()
-            return obj.to_dict() if obj else None
+        obj = session.query(cls).filter(cls.id == report_id).first()
+        return obj.to_dict() if obj else None
 
     @classmethod
-    def delete(cls, report_id: int) -> bool:
+    def delete(cls, session: Session, report_id: int) -> bool:
         """
         Delete a report by its ID.
 
         Args:
+            session: Active SQLAlchemy session (caller manages the transaction).
             report_id: The ID of the report to delete.
         Returns:
             bool: True if the report was successfully deleted, False if not found.
         """
-        with SessionLocal() as session:
-            with session.begin():
-                obj = session.query(cls).filter(cls.id == report_id).first()
-                if obj is None:
-                    return False
-                session.delete(obj)
-                return True
+        obj = session.query(cls).filter(cls.id == report_id).first()
+        if obj is None:
+            return False
+        session.delete(obj)
+        return True

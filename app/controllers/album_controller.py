@@ -1,5 +1,7 @@
 from typing import List, Optional, Tuple
 
+from app.core.db.engine import SessionLocal
+from app.core.db.models.album import AlbumModel
 from app.core.services.album_service import AlbumService
 from app.core.state.session import session
 
@@ -29,7 +31,8 @@ class AlbumController:
         target_user_id = user_id if user_id is not None else session.user_id
         if target_user_id is None:
             return []
-        return AlbumService.get_user_albums(target_user_id)
+        with SessionLocal() as db:
+            return AlbumModel.get_by_creator(db, target_user_id)
 
     @staticmethod
     def get_all_albums() -> List[dict]:
@@ -39,7 +42,8 @@ class AlbumController:
         Returns:
             list: List of all album dictionaries.
         """
-        return AlbumService.get_all_albums()
+        with SessionLocal() as db:
+            return AlbumModel.get_all(db)
 
     @staticmethod
     def get_album(album_id: int) -> Optional[dict]:
@@ -52,7 +56,8 @@ class AlbumController:
         Returns:
             dict or None: The album data if found.
         """
-        return AlbumService.get_album_by_id(album_id)
+        with SessionLocal() as db:
+            return AlbumModel.get_by_id(db, album_id)
 
     @staticmethod
     def create_album(name: str) -> Tuple[bool, str]:
@@ -65,8 +70,6 @@ class AlbumController:
         Returns:
             Tuple of (success, message)
         """
-        if not session.is_authenticated:
-            return False, "You must be logged in to create an album"
         assert session.user_id is not None
 
         if not name or not name.strip():
@@ -90,8 +93,6 @@ class AlbumController:
         Returns:
             Tuple of (success, message)
         """
-        if not session.is_authenticated:
-            return False, "You must be logged in to rename an album"
         assert session.user_id is not None
 
         if not new_name or not new_name.strip():
@@ -116,8 +117,6 @@ class AlbumController:
         Returns:
             Tuple of (success, message)
         """
-        if not session.is_authenticated:
-            return False, "You must be logged in to delete an album"
         assert session.user_id is not None
 
         try:

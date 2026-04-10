@@ -43,8 +43,9 @@ class UserService:
     @staticmethod
     def delete_user(user_id: int) -> bool:
         with SessionLocal() as session:
-            with session.begin():
-                return UserModel.delete(session, user_id)
+            result = UserModel.delete(session, user_id)
+            session.commit()
+            return result
 
     @staticmethod
     def get_user_list_for_admin() -> list:
@@ -83,8 +84,8 @@ class UserService:
         """
         avatar_path = f"assets/images/profile_avatars/{avatar_filename}"
         with SessionLocal() as session:
-            with session.begin():
-                result = AvatarModel.create(session, user_id, avatar_path)
+            result = AvatarModel.create(session, user_id, avatar_path)
+            session.commit()
         return result is not None
 
     @staticmethod
@@ -113,8 +114,8 @@ class UserService:
             role = RoleModel.get_by_name(session, new_role)
             if not role:
                 return False
-            with session.begin():
-                UserModel.update(session, {**user, "roleId": role["id"]})
+            UserModel.update(session, {**user, "roleId": role["id"]})
+            session.commit()
         return True
 
     @staticmethod
@@ -134,8 +135,9 @@ class UserService:
                 return False
             if user["isBlocked"]:
                 raise ValueError(f'"{username}" is already blocked.')
-            with session.begin():
-                return UserModel.set_blocked(session, user["id"], True)
+            result = UserModel.set_blocked(session, user["id"], True)
+            session.commit()
+            return result
 
     @staticmethod
     def unblock_user(username: str) -> bool:
@@ -154,8 +156,9 @@ class UserService:
                 return False
             if not user["isBlocked"]:
                 raise ValueError(f'"{username}" is already unblocked.')
-            with session.begin():
-                return UserModel.set_blocked(session, user["id"], False)
+            result = UserModel.set_blocked(session, user["id"], False)
+            session.commit()
+            return result
 
     @staticmethod
     def is_user_blocked(user_id: int) -> bool:
@@ -241,8 +244,6 @@ class UserService:
                 for c in contacts
             ]
 
-    # ── Follow / Unfollow ────────────────────────────────────────────────────
-
     @staticmethod
     def follow_user(follower_id: int, followed_id: int) -> bool:
         """
@@ -256,8 +257,8 @@ class UserService:
             bool: True if the follow was created, False if already following.
         """
         with SessionLocal() as session:
-            with session.begin():
-                result = FollowModel.follow(session, follower_id, followed_id)
+            result = FollowModel.follow(session, follower_id, followed_id)
+            session.commit()
         return result is not None
 
     @staticmethod
@@ -273,8 +274,7 @@ class UserService:
             bool: True if the relationship was removed, False if it didn't exist.
         """
         with SessionLocal() as session:
-            with session.begin():
-                return FollowModel.unfollow(session, follower_id, followed_id)
+            return FollowModel.unfollow(session, follower_id, followed_id)
 
     @staticmethod
     def get_followers(user_id: int) -> list:
@@ -329,7 +329,8 @@ class UserService:
         with SessionLocal() as session:
             if ContactModel.title_exists(session, title):
                 raise ValueError("A message with this title already exists")
-            with session.begin():
-                return ContactModel.create(
-                    session, title=title, message=message, userId=userId
-                )
+            result = ContactModel.create(
+                session, title=title, message=message, userId=userId
+            )
+            session.commit()
+            return result

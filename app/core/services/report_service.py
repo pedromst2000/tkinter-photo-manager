@@ -20,8 +20,9 @@ class ReportService:
     def resolve_report(report_id: int) -> bool:
         """Delete (resolve) a report. Returns True if deleted, False if not found."""
         with SessionLocal() as session:
-            with session.begin():
-                return ReportModel.delete(session, report_id)
+            result = ReportModel.delete(session, report_id)
+            session.commit()
+            return result
 
     @staticmethod
     def submit_report(
@@ -60,18 +61,18 @@ class ReportService:
                 if reporter and reporter.get("roleId") == 1:
                     return False, "Admins cannot submit reports"
 
-                with session.begin():
-                    reason_record = ReportReasonModel.get_by_label(session, reason)
-                    if not reason_record:
-                        return False, "Invalid reason"
+                reason_record = ReportReasonModel.get_by_label(session, reason)
+                if not reason_record:
+                    return False, "Invalid reason"
 
-                    ReportModel.create(
-                        session,
-                        reporter_id=reporter_id,
-                        reason_id=reason_record["id"],
-                        photo_id=photo_id,
-                        comment_id=comment_id,
-                    )
+                ReportModel.create(
+                    session,
+                    reporter_id=reporter_id,
+                    reason_id=reason_record["id"],
+                    photo_id=photo_id,
+                    comment_id=comment_id,
+                )
+                session.commit()
             return (
                 True,
                 "Your report has been submitted and will be reviewed by an admin",

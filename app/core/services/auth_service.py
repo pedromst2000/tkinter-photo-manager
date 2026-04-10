@@ -75,19 +75,19 @@ class AuthService:
         ).decode("utf-8")
 
         with SessionLocal() as session:
-            with session.begin():
-                unsigned_role = RoleModel.get_by_name(session, "unsigned")
-                # Create user in database
-                user = UserModel.create(
-                    session,
-                    username=username,
-                    email=email,
-                    password=hashed_password,
-                    roleId=unsigned_role["id"] if unsigned_role else None,
-                    isBlocked=False,
-                )
-                # Create default avatar (was previously inside UserModel.create)
-                AvatarModel.create(session, user["id"], _DEFAULT_AVATAR)
+            unsigned_role = RoleModel.get_by_name(session, "unsigned")
+            # Create user in database
+            user = UserModel.create(
+                session,
+                username=username,
+                email=email,
+                password=hashed_password,
+                roleId=unsigned_role["id"] if unsigned_role else None,
+                isBlocked=False,
+            )
+            # Create default avatar (was previously inside UserModel.create)
+            AvatarModel.create(session, user["id"], _DEFAULT_AVATAR)
+            session.commit()
             # Re-fetch after commit so the returned dict includes the avatar
             return UserModel.get_by_id(session, user["id"])  # type: ignore[return-value]
 
@@ -309,8 +309,9 @@ class AuthService:
             new_password.encode("utf-8"), bcrypt.gensalt()
         ).decode("utf-8")
         with SessionLocal() as session:
-            with session.begin():
-                return UserModel.update_password(session, user_id, hashed)
+            result = UserModel.update_password(session, user_id, hashed)
+            session.commit()
+            return result
 
     @staticmethod
     def verify_password(user_id: int, password: str) -> bool:

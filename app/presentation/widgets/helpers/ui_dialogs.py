@@ -1,5 +1,9 @@
 import tkinter as tk
 from tkinter import messagebox
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # Avoid circular imports for type hints
+    from app.presentation.views.helpers.data.state import ExploreState
 
 
 def show_limited_access(
@@ -91,3 +95,66 @@ def show_confirmation(parent: tk.Tk, title: str, message: str) -> bool:
         bool: True if user clicked Yes, False if clicked No.
     """
     return messagebox.askyesno(title, message, parent=parent)
+
+
+def handle_delete_photo(state: "ExploreState") -> None:
+    """
+    Handle photo deletion with confirmation and feedback dialogs.
+
+    For admin users or photo owners. Shows confirmation dialog before deletion,
+    then deletes the photo and updates pagination.
+
+    Args:
+        state: Explore view state containing selected photo info.
+    """
+    if state.selected_photo is None:
+        return
+
+    photo_id = state.selected_photo.get("id")
+
+    confirmed = show_confirmation(
+        state.win,
+        "Delete Photo",
+        "Are you sure you want to delete this photo?\n\nThis action cannot be undone.",
+    )
+
+    if not confirmed:
+        return
+
+    try:
+        from app.controllers.photo_controller import (  # Avoid circular import
+            PhotoController,
+        )
+
+        success, message = PhotoController.delete_photo(photo_id)
+
+        if success:
+            show_info(state.win, "Success", message)
+
+            from app.presentation.views.helpers.data.catalog import (
+                invalidate_catalog_cache,
+            )
+
+            invalidate_catalog_cache()
+
+            state.selected_index = None
+            from app.presentation.views.helpers.ui.preview import reset_preview
+
+            reset_preview(state)
+
+            from app.presentation.views.helpers.data.catalog import load_catalog
+
+            load_catalog(state)
+
+            pagination_controller = getattr(state, "_pagination_ui_controller", None)
+            if pagination_controller and hasattr(
+                pagination_controller, "tree_controller"
+            ):
+                pagination_controller.tree_controller.refresh_treeview()
+        else:
+            show_error(state.win, "Error", message)
+    except Exception as e:
+        from app.utils.log_utils import log_issue
+
+        log_issue("handle_delete_photo failed", exc=e)
+        show_error(state.win, "Error", "Something went wrong. Please try again later.")

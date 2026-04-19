@@ -1,8 +1,8 @@
-from app.controllers.explore_controller import ExploreController
+from app.controllers.category_controller import CategoryController
 from app.core.services.catalog_service import CatalogService
-from app.presentation.views.explore.helpers.data.pagination import PaginationManager
-from app.presentation.views.explore.helpers.data.state import ExploreState
-from app.presentation.views.explore.helpers.ui.preview import reset_preview
+from app.presentation.views.helpers.data.pagination import PaginationManager
+from app.presentation.views.helpers.data.state import ExploreState
+from app.presentation.views.helpers.ui.preview import reset_preview
 
 # Mapping from OptionMenu display label → sort_by key understood by the controller
 SORT_OPTIONS = {
@@ -58,7 +58,7 @@ def _get_filtered_photos(
         is_unsigned: Whether to apply unsigned user filters
 
     Returns:
-        List of filtered photos (already sorted)
+        list: List of filtered photos (already sorted)
     """
     global _cache_key
 
@@ -102,7 +102,7 @@ def _get_page_data(state: ExploreState, page_num: int) -> list:
         page_num: Page number (1-based)
 
     Returns:
-        List of photo items for the requested page (10 or fewer)
+        list: List of photo items for the requested page (10 or fewer)
     """
     # Get filter state from globals
     sort_key = _current_filters["sort_by"]
@@ -245,4 +245,4 @@ def get_category_options() -> list:
     Returns:
         list: A list of available category options.
     """
-    return ExploreController.get_categories()
+    return CategoryController.get_categories()

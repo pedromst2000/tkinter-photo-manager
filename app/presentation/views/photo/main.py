@@ -2,7 +2,7 @@ import tkinter as tk
 
 from app.presentation.styles.colors import colors
 from app.presentation.styles.fonts import quickSandBold
-from app.presentation.views.explore.helpers.data.state import ExploreState
+from app.presentation.views.helpers.data.state import ExploreState
 from app.presentation.widgets.window import create_toplevel
 
 

@@ -89,6 +89,32 @@ class ReportService:
             return None
 
     @staticmethod
+    def has_user_reported(
+        user_id: int,
+        photo_id: Optional[int] = None,
+        comment_id: Optional[int] = None,
+    ) -> bool:
+        """
+        Check if a user has already reported a specific photo or comment.
+
+        Args:
+            user_id: The ID of the user to check.
+            photo_id: The ID of the photo to check (mutually exclusive with comment_id).
+            comment_id: The ID of the comment to check (mutually exclusive with photo_id).
+
+        Returns:
+            bool: True if the user has already reported this content, False otherwise.
+        """
+        try:
+            with SessionLocal() as session:
+                return ReportModel.has_user_reported(
+                    session, user_id, photo_id=photo_id, comment_id=comment_id
+                )
+        except Exception as e:
+            log_exception("report.has_user_reported", e)
+            return False
+
+    @staticmethod
     def resolve_report(report_id: int) -> bool:
         """
         Delete (resolve) a report. Returns True if deleted, False if not found.
@@ -127,6 +153,7 @@ class ReportService:
         reason: str,
         photo_id: Optional[int] = None,
         comment_id: Optional[int] = None,
+        description: Optional[str] = None,
     ) -> Tuple[bool, str]:
         """
         Submit a content report against a photo or comment.
@@ -135,12 +162,14 @@ class ReportService:
         - Reason label must be non-empty and map to a valid report_reasons row.
         - Admins cannot submit reports.
         - Exactly one of photo_id / comment_id must be provided.
+        - description is required when reason is "Other".
 
         Args:
             reporter_id: The ID of the user submitting the report.
             reason: The reason label chosen by the reporter.
             photo_id: The ID of the photo being reported (if applicable).
             comment_id: The ID of the comment being reported (if applicable).
+            description: Optional detail text (required when reason is "Other").
 
         Returns:
             Tuple[bool, str]: (success, message)
@@ -153,6 +182,16 @@ class ReportService:
 
         if (photo_id is None) == (comment_id is None):
             return False, "Exactly one of photo or comment must be specified"
+
+        clean_description = (
+            description.strip() if description and description.strip() else None
+        )
+
+        if reason.strip() == "Other" and not clean_description:
+            return False, "Please provide details when selecting 'Other'"
+
+        if clean_description and len(clean_description) > 255:
+            return False, "Description must not exceed 255 characters"
 
         try:
             with SessionLocal() as session:
@@ -178,12 +217,25 @@ class ReportService:
                     )
                     return False, "Invalid reason"
 
+                # Check if user has already reported this photo/comment
+                if ReportModel.has_user_reported(
+                    session, reporter_id, photo_id=photo_id, comment_id=comment_id
+                ):
+                    log_operation(
+                        "report.submit_report",
+                        "validation_error",
+                        "User has already reported this content",
+                        user_id=reporter_id,
+                    )
+                    return False, "You have already reported this content"
+
                 ReportModel.create(
                     session,
                     reporter_id=reporter_id,
                     reason_id=reason_record["id"],
                     photo_id=photo_id,
                     comment_id=comment_id,
+                    description=clean_description,
                 )
                 session.commit()
             log_operation(

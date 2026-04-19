@@ -1,44 +1,74 @@
 import tkinter as tk
 from tkinter import ttk
-from typing import Optional
+from typing import Callable, List, Optional
 
 from app.controllers.ui.pagination_controller import PaginationUIController
 from app.presentation.styles.colors import colors
 from app.presentation.styles.fonts import quickSandBold, quickSandRegular
-from app.presentation.views.explore.helpers.ui.treeview import on_treeview_select
 from app.presentation.widgets.helpers.button import on_enter, on_leave
 
 
-class PhotoTreeviewWidget(tk.Frame):
+class TreeviewWidget(tk.Frame):
     """
-    Treeview widget for displaying photo lists.
+    Generic treeview widget for displaying tabular data with pagination.
 
-    Displays: Album, Author, Category columns.
+    Columns, title, description, and behaviour callbacks are all provided by
+    the caller, making this widget reusable for photos, users, reports, or any
+    other data set without requiring changes to the widget itself.
+
+    Column config dict schema::
+
+        {
+            "key":     str,              # unique column identifier
+            "heading": str,              # visible column heading text
+            "width":   int,              # column pixel width
+            "stretch": bool (optional),  # whether the column stretches (default False)
+        }
     """
 
     def __init__(
         self,
         parent: tk.Frame,
         state,
+        columns: List[dict],
+        title: str = "Browse Items",
+        description: str = "Browse and select items.",
+        on_select: Optional[Callable] = None,
+        on_page_changed: Optional[Callable] = None,
         width: int = 460,
         height: int = 674,
         bg: Optional[str] = None,
     ):
         """
-        Create and place treeview panel.
+        Create and place a treeview panel.
 
         Args:
-            parent: Parent frame (body)
-            state: Explore state object
-            width: Panel width
-            height: Panel height
+            parent: Parent frame.
+            state: Any state object that exposes ``tree``, ``page_info_label``,
+                ``prev_page_btn``, ``next_page_btn``, and pagination attributes.
+            columns: List of column config dicts (see class docstring).
+            title: Panel title label text.
+            description: Panel subtitle/description label text.
+            on_select: Callback invoked with the Tkinter ``<<TreeviewSelect>>``
+                event when the user selects a row. If *None*, no selection
+                handler is bound.
+            on_page_changed: No-arg callable invoked whenever the active page
+                changes (e.g. to reset a preview panel). If *None*, ignored.
+            width: Panel pixel width.
+            height: Panel pixel height.
+            bg: Background colour; falls back to parent bg then theme token.
         """
         self.parent = parent
         self.state = state
+        self.columns = columns
+        self.title = title
+        self.description = description
+        self.on_select = on_select
+        self.on_page_changed = on_page_changed
         self.width = width
         self.height = height
 
-        # Color scheme: inherit from provided bg or parent's bg, otherwise use theme token
+        # Resolve background colour
         bg_value = bg
         if bg_value is None:
             try:
@@ -49,38 +79,35 @@ class PhotoTreeviewWidget(tk.Frame):
             bg_value = colors["primary-50"]
         self._page_bg = bg_value
 
-        # Build the treeview panel
         self._build_treeview_panel()
 
     def _build_treeview_panel(self):
-        """Build the left treeview panel showing photo list."""
+        """Build the treeview panel."""
         left = tk.Frame(self.parent, bg=self._page_bg)
         left.place(x=0, y=0, width=self.width, height=self.height)
 
-        # Title and description
+        # ── Title and description ──────────────────────────────────────
         title_frame = tk.Frame(left, bg=self._page_bg)
         title_frame.pack(fill="x", padx=15, pady=(10, 2))
 
         tk.Label(
             title_frame,
-            text="Explore Photos & Albums",
+            text=self.title,
             font=quickSandBold(14),
             bg=self._page_bg,
             fg=colors["secondary-500"],
         ).pack(anchor="w")
 
-        desc = tk.Label(
+        tk.Label(
             title_frame,
-            text="Browse photos, open albums, and interact with the photos.",
+            text=self.description,
             font=quickSandRegular(11),
             bg=self._page_bg,
             fg=colors["secondary-400"],
-        )
-        desc.pack(anchor="w")
+        ).pack(anchor="w")
 
-        # Treeview styling
-        # Removed the `name` (photo) column — photos are shown in the preview.
-        columns = ("album", "author", "category")
+        # ── Treeview styling ──────────────────────────────────────────
+        col_keys = tuple(c["key"] for c in self.columns)
         style = ttk.Style()
         style.theme_use("clam")
         style.configure(
@@ -124,10 +151,11 @@ class PhotoTreeviewWidget(tk.Frame):
             foreground=[("selected", colors["primary-50"])],
         )
         style.map(
-            "Explore.Treeview.Heading", background=[("active", colors["secondary-500"])]
+            "Explore.Treeview.Heading",
+            background=[("active", colors["secondary-500"])],
         )
 
-        # Minimal padding to maximize treeview space (left=2 for scrollbar, right=0 for clean edge)
+        # ── Scrollbars + Treeview ─────────────────────────────────────
         tree_frame = tk.Frame(left, bg=self._page_bg)
         tree_frame.pack(fill=tk.BOTH, expand=True, padx=(2, 0), pady=2)
 
@@ -144,39 +172,40 @@ class PhotoTreeviewWidget(tk.Frame):
 
         tree = ttk.Treeview(
             tree_frame,
-            columns=columns,
+            columns=col_keys,
             show="headings",
             style="Explore.Treeview",
             yscrollcommand=v_scrollbar.set,
             xscrollcommand=h_scrollbar.set,
             height=15,
         )
-        tree.heading("album", text="Album")
-        tree.heading("author", text="Author")
-        tree.heading("category", text="Category")
-        # Adjust column widths to better fill the (now wider) left panel
-        tree.column("album", width=180, stretch=tk.NO)
-        tree.column("author", width=140, stretch=tk.NO)
-        tree.column("category", width=190, stretch=tk.NO)
+
+        for col in self.columns:
+            tree.heading(col["key"], text=col["heading"])
+            tree.column(
+                col["key"],
+                width=col["width"],
+                stretch=col.get("stretch", tk.NO),
+            )
+
         tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         v_scrollbar.config(command=tree.yview)
         h_scrollbar.config(command=tree.xview)
 
         self.state.tree = tree
-        tree.bind("<<TreeviewSelect>>", lambda e: on_treeview_select(e, self.state))
 
-        # ── Pagination controls ────────────────────────────────────────
-        # Create pagination UI controller (handles all pagination logic)
+        if self.on_select is not None:
+            tree.bind("<<TreeviewSelect>>", self.on_select)
+
+        # ── Pagination controls ───────────────────────────────────────
         def _on_page_changed():
-            """Callback when page changes - update preview."""
-            from app.presentation.views.explore.helpers.ui.preview import reset_preview
-
-            reset_preview(self.state)
+            """Internal callback for when the page changes; invokes external callback if provided."""
+            if self.on_page_changed is not None:
+                self.on_page_changed()
 
         pagination_controller = PaginationUIController(
             self.state, on_page_changed=_on_page_changed
         )
-        # Store in state so load_catalog() can access it
         self.state._pagination_ui_controller = pagination_controller
 
         pagination_frame = tk.Frame(left, bg=self._page_bg, height=36)
@@ -232,8 +261,6 @@ class PhotoTreeviewWidget(tk.Frame):
         self.state.next_page_btn = next_btn
 
     def refresh_pagination(self):
-        """Refresh pagination UI (called by explore controller)."""
-        # Pagination is initialized in catalog.py with lazy-loading
-        # This just refreshes the UI display
+        """Refresh pagination UI (called by external controllers)."""
         if hasattr(self, "pagination_controller"):
             self.pagination_controller.refresh_ui()

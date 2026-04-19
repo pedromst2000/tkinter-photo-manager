@@ -1,6 +1,6 @@
 from app.controllers.ui.tree_view_controller import TreeViewController
-from app.presentation.views.explore.helpers.data.pagination import PaginationManager
-from app.presentation.views.explore.helpers.data.state import ExploreState
+from app.presentation.views.helpers.data.pagination import PaginationManager
+from app.presentation.views.helpers.data.state import ExploreState
 from app.utils.log_utils import log_issue
 
 

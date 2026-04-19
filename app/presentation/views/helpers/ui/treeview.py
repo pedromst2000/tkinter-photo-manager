@@ -1,7 +1,7 @@
 import tkinter as tk
 
-from app.presentation.views.explore.helpers.data.state import ExploreState
-from app.presentation.views.explore.helpers.ui.preview import (
+from app.presentation.views.helpers.data.state import ExploreState
+from app.presentation.views.helpers.ui.preview import (
     reset_preview,
     update_preview,
 )

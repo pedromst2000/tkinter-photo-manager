@@ -1,27 +1,8 @@
 import tkinter as tk
-from typing import Any, Optional, Tuple
+from typing import Any, Callable, List, Optional
 
 from app.presentation.styles.colors import colors
 from app.presentation.styles.fonts import quickSandBold, quickSandBoldUnderline
-from app.presentation.views.album.main import open_album
-from app.presentation.views.comments.main import open_comments
-from app.presentation.views.explore.helpers.ui.carousel import (
-    navigate_next,
-    navigate_prev,
-)
-from app.presentation.views.explore.helpers.ui.dialogs import (
-    handle_delete_photo,
-    open_report_dialog,
-)
-from app.presentation.views.explore.helpers.ui.interactions import (
-    handle_like,
-    handle_rate,
-)
-from app.presentation.views.explore.helpers.ui.preview import (
-    reset_preview,
-)
-from app.presentation.views.photo.main import open_photo_details
-from app.presentation.views.profile.author import open_author_profile
 from app.presentation.widgets.helpers.button import on_enter as button_on_enter
 from app.presentation.widgets.helpers.button import on_leave as button_on_leave
 from app.presentation.widgets.helpers.icon_label import add_icon_canvas
@@ -32,19 +13,35 @@ from app.presentation.widgets.star_rating import StarRatingWidget
 
 class PreviewPanelWidget(tk.Frame):
     """
-    Reusable preview panel widget with carousel and photo metadata.
+    Generic preview panel widget with photo carousel and optional metadata.
 
-    Contains:
-    - Photo carousel with prev/next navigation
-    - Metadata: avatar, username, rating stars
-    - Stats: likes and comments count
-    - Action buttons: like, details, comments, album, report
+    All behaviour (navigation, rating, username click, action buttons) is
+    provided via callbacks, making this widget reusable across different
+    views (Explore, Album, Admin, etc.) without modifications.
+
+    Button config dict schema::
+
+        {
+            "name":        str,       # attribute name stored on state (e.g. "like_btn")
+            "label":       str,       # button text
+            "icon":        str,       # icon filename (under UI_Icons/)
+            "command":     Callable,  # action executed on click
+            "unlike_icon": str,       # (optional) alternate icon filename for toggle state
+        }
     """
 
     def __init__(
         self,
         parent: tk.Frame,
         state,
+        title: str = "Preview",
+        subtitle: Optional[str] = None,
+        show_metadata: bool = True,
+        on_prev: Optional[Callable] = None,
+        on_next: Optional[Callable] = None,
+        on_username_click: Optional[Callable] = None,
+        on_rate: Optional[Callable] = None,
+        buttons: Optional[List[dict]] = None,
         x_pos: int = 545,
         width: int = 755,
         height: int = 674,
@@ -54,26 +51,43 @@ class PreviewPanelWidget(tk.Frame):
         canvas_bg: Optional[str] = None,
     ):
         """
-        Create and place preview panel.
+        Create and place a preview panel.
 
         Args:
-            parent: Parent Tkinter frame to attach the panel to.
-            state: Shared state object for managing interactions and data.
-            x_pos: X position of the panel (for balanced layout with left panel).
-            width: Width of the preview panel.
-            height: Height of the preview panel.
-            panel_bg: Optional background color for the panel (overrides default).
-            btn_bg: Optional background color for buttons (overrides default).
-            btn_fg: Optional foreground color for buttons (overrides default).
-            canvas_bg: Optional background color for the carousel canvas (overrides default).
+            parent: Parent Tkinter frame.
+            state: Shared state object; carousel, metadata widget refs, and button
+                refs will be stored here as attributes.
+            title: Main heading text.
+            subtitle: Optional secondary heading text (shown only when not None).
+            show_metadata: Whether to show avatar / username / stars / counts row.
+            on_prev: No-arg callable for carousel "previous" navigation.
+            on_next: No-arg callable for carousel "next" navigation.
+            on_username_click: No-arg callable when username/avatar is clicked.
+            on_rate: Callable receiving the chosen star value (int) on rating.
+            buttons: List of button config dicts (see class docstring).
+                Buttons are stored on *state* by their "name" key.
+            x_pos: X position of the panel in parent.
+            width: Panel pixel width.
+            height: Panel pixel height.
+            panel_bg: Panel background colour override.
+            btn_bg: Button background colour override.
+            btn_fg: Button foreground colour override.
+            canvas_bg: Carousel canvas background colour override.
         """
         self.parent = parent
         self.state = state
+        self.title = title
+        self.subtitle = subtitle
+        self.show_metadata = show_metadata
+        self._on_prev = on_prev
+        self._on_next = on_next
+        self._on_username_click = on_username_click
+        self._on_rate = on_rate
+        self.buttons = buttons or []
         self.x_pos = x_pos
         self.width = width
         self.height = height
 
-        # Color scheme (allow override of panel background and buttons)
         self._panel_bg = panel_bg if panel_bg is not None else colors["secondary-300"]
         self._btn_bg = btn_bg if btn_bg is not None else colors["accent-300"]
         self._btn_fg = btn_fg if btn_fg is not None else colors["secondary-500"]
@@ -85,37 +99,38 @@ class PreviewPanelWidget(tk.Frame):
         self._build_preview_panel()
 
     def _build_preview_panel(self):
-        """Build the right preview panel with carousel and metadata."""
+        """Build the preview panel with carousel, optional metadata, and action buttons."""
         right = tk.Frame(self.parent, bg=self._panel_bg, bd=0)
         right.place(x=self.x_pos, y=0, width=self.width, height=self.height)
 
-        # Header
+        # ── Header ──────────────────────────────────────────────────────
         header_frame = tk.Frame(right, bg=self._panel_bg)
         header_frame.pack(fill="x", padx=15, pady=(10, 2))
 
         tk.Label(
             header_frame,
-            text="Preview Photos",
+            text=self.title,
             font=quickSandBold(14),
             bg=self._panel_bg,
             fg=colors["secondary-500"],
         ).pack(anchor="w")
 
-        tk.Label(
-            header_frame,
-            text="View the album above  •  Click the username to view the author's profile  •  Hover over the stars to rate the photo",
-            font=quickSandBold(12),
-            bg=self._panel_bg,
-            fg=colors["primary-50"],
-            wraplength=700,
-            justify="left",
-        ).pack(anchor="w")
+        if self.subtitle is not None:
+            tk.Label(
+                header_frame,
+                text=self.subtitle,
+                font=quickSandBold(12),
+                bg=self._panel_bg,
+                fg=colors["primary-50"],
+                wraplength=700,
+                justify="left",
+            ).pack(anchor="w")
 
-        # Preview column: carousel → metadata → buttons
+        # ── Preview column: carousel → metadata → buttons ────────────────
         preview_col = tk.Frame(right, bg=self._panel_bg)
         preview_col.pack(fill="both", expand=False, padx=0, pady=0)
 
-        # ── Carousel ────────────────────────────────────────────────────
+        # ── Carousel ─────────────────────────────────────────────────────
         carousel = PhotoCarouselWidget(
             preview_col,
             canvas_width=450,
@@ -128,202 +143,189 @@ class PreviewPanelWidget(tk.Frame):
         carousel.pack(padx=10, pady=(4, 8))
         self.state.carousel = carousel
         carousel.set_callbacks(
-            on_prev=lambda: navigate_prev(self.state),
-            on_next=lambda: navigate_next(self.state),
+            on_prev=self._on_prev,
+            on_next=self._on_next,
         )
 
-        # ── Metadata section (2 rows) ───────────────────────────────────
-        metadata_container = tk.Frame(preview_col, bg=self._panel_bg)
-        metadata_container.pack(fill="x", padx=10, pady=(12, 4))
-        self.state.metadata_frame = metadata_container
+        # ── Metadata section ─────────────────────────────────────────────
+        if self.show_metadata:
+            metadata_container = tk.Frame(preview_col, bg=self._panel_bg)
+            metadata_container.pack(fill="x", padx=10, pady=(12, 4))
+            self.state.metadata_frame = metadata_container
 
-        # Row 1: Avatar + Username + Stars
-        meta_row1 = tk.Frame(metadata_container, bg=self._panel_bg)
-        meta_row1.pack(fill="x", side=tk.TOP, pady=(0, 2))
+            # Row 1: Avatar + Username + Stars
+            meta_row1 = tk.Frame(metadata_container, bg=self._panel_bg)
+            meta_row1.pack(fill="x", side=tk.TOP, pady=(0, 2))
 
-        avatar_canvas = tk.Canvas(
-            meta_row1,
-            width=40,
-            height=40,
-            bg=self._panel_bg,
-            highlightthickness=0,
-            bd=0,
-            cursor="hand2",
-        )
-        avatar_canvas.pack(side=tk.LEFT, padx=(0, 8))
-        self.state.avatar_canvas = avatar_canvas
+            avatar_canvas = tk.Canvas(
+                meta_row1,
+                width=40,
+                height=40,
+                bg=self._panel_bg,
+                highlightthickness=0,
+                bd=0,
+                cursor="hand2",
+            )
+            avatar_canvas.pack(side=tk.LEFT, padx=(0, 8))
+            self.state.avatar_canvas = avatar_canvas
 
-        username_lbl = tk.Label(
-            meta_row1,
-            text="",
-            font=quickSandBoldUnderline(12),
-            bg=self._panel_bg,
-            fg=colors["primary-50"],
-            cursor="hand2",
-        )
-        username_lbl.pack(side=tk.LEFT, padx=(0, 20))
-        self.state.username_label = username_lbl
+            username_lbl = tk.Label(
+                meta_row1,
+                text="",
+                font=quickSandBoldUnderline(12),
+                bg=self._panel_bg,
+                fg=colors["primary-50"],
+                cursor="hand2",
+            )
+            username_lbl.pack(side=tk.LEFT, padx=(0, 20))
+            self.state.username_label = username_lbl
 
-        star_widget = StarRatingWidget(
-            meta_row1,
-            bg=self._panel_bg,
-            interactive=True,
-            size=24,
-            on_rate=lambda v: handle_rate(self.state, v, right),
-        )
-        star_widget.pack(side=tk.RIGHT)
-        self.state.star_widget = star_widget
+            star_widget = StarRatingWidget(
+                meta_row1,
+                bg=self._panel_bg,
+                interactive=True,
+                size=24,
+                on_rate=self._on_rate,
+            )
+            star_widget.pack(side=tk.RIGHT)
+            self.state.star_widget = star_widget
 
-        rating_count_lbl = tk.Label(
-            meta_row1,
-            text="",
-            font=quickSandBold(10),
-            bg=self._panel_bg,
-            fg=colors["primary-50"],
-        )
-        rating_count_lbl.pack(side=tk.RIGHT, padx=(4, 0))
-        self.state.rating_count_label = rating_count_lbl
+            rating_count_lbl = tk.Label(
+                meta_row1,
+                text="",
+                font=quickSandBold(10),
+                bg=self._panel_bg,
+                fg=colors["primary-50"],
+            )
+            rating_count_lbl.pack(side=tk.RIGHT, padx=(4, 0))
+            self.state.rating_count_label = rating_count_lbl
 
-        # Row 2: Likes + Comments (right-aligned)
-        meta_row2 = tk.Frame(metadata_container, bg=self._panel_bg)
-        meta_row2.pack(fill="x", side=tk.TOP, pady=(4, 0))
+            # Row 2: Likes + Comments (right-aligned)
+            meta_row2 = tk.Frame(metadata_container, bg=self._panel_bg)
+            meta_row2.pack(fill="x", side=tk.TOP, pady=(4, 0))
 
-        meta_stats = tk.Frame(meta_row2, bg=self._panel_bg)
-        meta_stats.pack(side=tk.RIGHT)
+            meta_stats = tk.Frame(meta_row2, bg=self._panel_bg)
+            meta_stats.pack(side=tk.RIGHT)
 
-        # Like icon + count (load directly into packable canvas)
-        like_canvas = tk.Canvas(
-            meta_stats,
-            width=20,
-            height=20,
-            bg=self._panel_bg,
-            highlightthickness=0,
-            bd=0,
-        )
-        like_canvas.pack(side=tk.LEFT, padx=(0, 6))
-        like_photo = load_image(
-            self._icon_dir + "Like_Icon.png",
-            size=(20, 20),
-            canvas=like_canvas,
-            x=0,
-            y=0,
-        )
-        like_canvas.image = like_photo
-        self.state._like_icon_canvas = like_canvas
+            like_canvas = tk.Canvas(
+                meta_stats,
+                width=20,
+                height=20,
+                bg=self._panel_bg,
+                highlightthickness=0,
+                bd=0,
+            )
+            like_canvas.pack(side=tk.LEFT, padx=(0, 6))
+            like_photo = load_image(
+                self._icon_dir + "Like_Icon.png",
+                size=(20, 20),
+                canvas=like_canvas,
+                x=0,
+                y=0,
+            )
+            like_canvas.image = like_photo
+            self.state._like_icon_canvas = like_canvas
 
-        likes_lbl = tk.Label(
-            meta_stats,
-            text="0",
-            font=quickSandBold(14),
-            bg=self._panel_bg,
-            fg=colors["primary-50"],
-        )
-        likes_lbl.pack(side=tk.LEFT, padx=(0, 12))
-        self.state.likes_label = likes_lbl
+            likes_lbl = tk.Label(
+                meta_stats,
+                text="0",
+                font=quickSandBold(14),
+                bg=self._panel_bg,
+                fg=colors["primary-50"],
+            )
+            likes_lbl.pack(side=tk.LEFT, padx=(0, 12))
+            self.state.likes_label = likes_lbl
 
-        # Comment icon + count (load directly into packable canvas)
-        comment_canvas = tk.Canvas(
-            meta_stats,
-            width=20,
-            height=20,
-            bg=self._panel_bg,
-            highlightthickness=0,
-            bd=0,
-        )
-        comment_canvas.pack(side=tk.LEFT, padx=(0, 6))
-        comment_photo = load_image(
-            self._icon_dir + "Comment_Icon.png",
-            size=(20, 20),
-            canvas=comment_canvas,
-            x=0,
-            y=0,
-        )
-        comment_canvas.image = comment_photo
-        self.state._comment_icon_canvas = comment_canvas
+            comment_canvas = tk.Canvas(
+                meta_stats,
+                width=20,
+                height=20,
+                bg=self._panel_bg,
+                highlightthickness=0,
+                bd=0,
+            )
+            comment_canvas.pack(side=tk.LEFT, padx=(0, 6))
+            comment_photo = load_image(
+                self._icon_dir + "Comment_Icon.png",
+                size=(20, 20),
+                canvas=comment_canvas,
+                x=0,
+                y=0,
+            )
+            comment_canvas.image = comment_photo
+            self.state._comment_icon_canvas = comment_canvas
 
-        comments_lbl = tk.Label(
-            meta_stats,
-            text="0",
-            font=quickSandBold(14),
-            bg=self._panel_bg,
-            fg=colors["primary-50"],
-        )
-        comments_lbl.pack(side=tk.LEFT)
-        self.state.comments_label = comments_lbl
+            comments_lbl = tk.Label(
+                meta_stats,
+                text="0",
+                font=quickSandBold(14),
+                bg=self._panel_bg,
+                fg=colors["primary-50"],
+            )
+            comments_lbl.pack(side=tk.LEFT)
+            self.state.comments_label = comments_lbl
 
-        # ── Action buttons row (below metadata) ──────────────────────────
-        btns_frame = tk.Frame(preview_col, bg=self._panel_bg)
-        btns_frame.pack(fill="x", padx=10, pady=(12, 0))
-        self.state.btns_frame = btns_frame
+            # Bind username / avatar click
+            if self._on_username_click is not None:
+                username_lbl.bind("<Button-1>", lambda e: self._on_username_click())
+                avatar_canvas.bind("<Button-1>", lambda e: self._on_username_click())
 
-        # Load all button icons using add_icon_canvas (consistent pattern)
-        like_icon, unlike_icon = self._load_button_icons()
+        # ── Action buttons ───────────────────────────────────────────────
+        if self.buttons:
+            btns_frame = tk.Frame(preview_col, bg=self._panel_bg)
+            btns_frame.pack(fill="x", padx=10, pady=(12, 0))
+            self.state.btns_frame = btns_frame
 
-        self.state.like_btn = self._make_icon_btn(
-            btns_frame,
-            label="  Add Like",
-            command=lambda: handle_like(self.state, right),
-            icon=like_icon,
-            like_icon=like_icon,
-            unlike_icon=unlike_icon,
-        )
-        self.state.details_btn = self._make_icon_btn(
-            btns_frame,
-            label="  See Details",
-            command=lambda: open_photo_details(self.state),
-            icon=self._get_icon_via_canvas(self._icon_dir + "Eye_Icon_V2.png"),
-        )
-        self.state.comments_btn = self._make_icon_btn(
-            btns_frame,
-            label="  See Comments",
-            command=lambda: open_comments(self.state),
-            icon=self._get_icon_via_canvas(self._icon_dir + "Comment_Icon_V2.png"),
-        )
-        self.state.album_btn = self._make_icon_btn(
-            btns_frame,
-            label="  See Album",
-            command=lambda: open_album(self.state),
-            icon=self._get_icon_via_canvas(self._icon_dir + "Eye_Icon_V2.png"),
-        )
+            btn_widgets = []
+            for btn_cfg in self.buttons:
+                name = btn_cfg["name"]
+                label = btn_cfg["label"]
+                icon_file = btn_cfg["icon"]
+                command = btn_cfg["command"]
+                unlike_file = btn_cfg.get("unlike_icon")
 
-        # Create delete button - shown for admins and photo owners
-        self.state.delete_btn = self._make_icon_btn(
-            btns_frame,
-            label="  Delete Photo",
-            command=lambda: handle_delete_photo(self.state),
-            icon=self._get_icon_via_canvas(self._icon_dir + "Remove_Icon.png"),
-        )
+                icon = self._get_icon_via_canvas(self._icon_dir + icon_file)
+                unlike_icon = (
+                    self._get_icon_via_canvas(self._icon_dir + unlike_file)
+                    if unlike_file
+                    else None
+                )
 
-        # Create report button - shown for users who don't own the photo
-        self.state.report_btn = self._make_icon_btn(
-            btns_frame,
-            label="  Report Photo",
-            command=lambda: open_report_dialog(self.state),
-            icon=self._get_icon_via_canvas(self._icon_dir + "Report_Icon.png"),
-        )
+                btn = self._make_icon_btn(
+                    btns_frame,
+                    label=label,
+                    command=command,
+                    icon=icon,
+                    like_icon=icon if unlike_icon else None,
+                    unlike_icon=unlike_icon,
+                )
+                setattr(self.state, name, btn)
+                btn_widgets.append(btn)
 
-        # Configure grid layout for buttons (max 5 buttons per row)
-        btns_frame.grid_columnconfigure([0, 1, 2, 3, 4], weight=0)
+            btns_frame.grid_columnconfigure(list(range(5)), weight=0)
+            for idx, btn in enumerate(btn_widgets):
+                row = idx // 5
+                col = idx % 5
+                btn.grid(row=row, column=col, padx=4, pady=2, sticky="ew")
 
-        buttons = [
-            self.state.like_btn,
-            self.state.details_btn,
-            self.state.comments_btn,
-            self.state.album_btn,
-            self.state.delete_btn,
-            self.state.report_btn,
-        ]
+        # ── Initial empty state ──────────────────────────────────────────
+        self.state.carousel.show_empty("No photo selected")
+        self.state.carousel.set_nav_enabled(prev=False, next_=False)
 
-        for idx, btn in enumerate(buttons):
-            row = idx // 5
-            col = idx % 5
-            btn.grid(row=row, column=col, padx=4, pady=2, sticky="ew")
+        if (
+            self.show_metadata
+            and hasattr(self.state, "metadata_frame")
+            and self.state.metadata_frame
+        ):
+            self.state.metadata_frame.pack_forget()
 
-        # Bind click handlers
-        username_lbl.bind("<Button-1>", lambda e: open_author_profile(self.state))
-        avatar_canvas.bind("<Button-1>", lambda e: open_author_profile(self.state))
-
-        reset_preview(self.state)
+        for btn_cfg in self.buttons:
+            name = btn_cfg.get("name")
+            if name:
+                btn = getattr(self.state, name, None)
+                if btn:
+                    btn.grid_remove()
+                    btn.config(state=tk.DISABLED)
 
     def _make_icon_btn(
         self,
@@ -335,18 +337,18 @@ class PreviewPanelWidget(tk.Frame):
         unlike_icon=None,
     ) -> tk.Button:
         """
-        Create a flat button with a pre-loaded icon (icons managed by caller like add_icon_canvas).
-
-        Single Responsibility: Only handles button creation, configuration, and bindings.
-        Icon loading and reference management is done by the caller.
+        Create a flat button with a pre-loaded icon.
 
         Args:
-            parent: The parent frame to attach the button to.
-            label: The text label to display on the button.
-            command: The function to call when the button is clicked.
-            icon: Pre-loaded PhotoImage object (for regular buttons).
-            like_icon: Pre-loaded like icon (for like button dynamic switching).
-            unlike_icon: Pre-loaded unlike icon (for like button dynamic switching).
+            parent: Parent frame.
+            label: Button text.
+            command: Function called on click.
+            icon: Pre-loaded PhotoImage for default state.
+            like_icon: Pre-loaded like icon (for toggleable like button).
+            unlike_icon: Pre-loaded unlike icon (for toggleable like button).
+
+        Returns:
+            tk.Button: Configured disabled button ready to be gridded.
         """
         btn = tk.Button(
             parent,
@@ -369,7 +371,6 @@ class PreviewPanelWidget(tk.Frame):
         )
         btn.image = icon
 
-        # Store both icon states for dynamic like/unlike switching
         if like_icon and unlike_icon:
             btn._like_icon = like_icon
             btn._unlike_icon = unlike_icon
@@ -379,64 +380,17 @@ class PreviewPanelWidget(tk.Frame):
 
         return btn
 
-    def _load_button_icons(self) -> Tuple[Any, Any]:
-        """
-        Load like/unlike button icons using add_icon_canvas pattern.
-
-        Creates hidden canvases with add_icon_canvas to load and manage icon references,
-        then extracts the PhotoImage objects with proper reference management.
-
-        Returns:
-            Tuple[PhotoImage, PhotoImage]: (like_icon, unlike_icon)
-        """
-        # Create an invisible holder frame for icon canvases
-        icon_holder = tk.Frame(self.parent)  # Hidden, won't be packed
-
-        like_canvas = add_icon_canvas(
-            "btn_like",
-            icon_holder,
-            self._icon_dir + "Like_Icon_V2.png",
-            icon_pos=(0, 0),
-            icon_size=(16, 16),
-            canvas_size=(16, 16),
-            visible=False,  # Don't display the canvas
-        )
-        unlike_canvas = add_icon_canvas(
-            "btn_unlike",
-            icon_holder,
-            self._icon_dir + "Unlike_Icon_V2.png",
-            icon_pos=(0, 0),
-            icon_size=(16, 16),
-            canvas_size=(16, 16),
-            visible=False,  # Don't display the canvas
-        )
-
-        # Extract PhotoImage objects from canvases (add_icon_canvas stores image as .image)
-        like_icon = like_canvas.image
-        unlike_icon = unlike_canvas.image
-
-        # Store references in state to prevent garbage collection
-        if not hasattr(self.state, "_btn_icon_refs"):
-            self.state._btn_icon_refs = []
-        self.state._btn_icon_refs.extend([like_icon, unlike_icon])
-
-        return like_icon, unlike_icon
-
     def _get_icon_via_canvas(self, icon_path: str) -> Any:
         """
-        Load a button icon using add_icon_canvas pattern.
-
-        Creates a hidden canvas with add_icon_canvas, extracts the PhotoImage,
-        and maintains the reference for garbage collection prevention.
+        Load a button icon and keep its reference alive via state.
 
         Args:
-            icon_path: Path to the icon image file.
+            icon_path: Full path to the icon image.
 
         Returns:
-            PhotoImage: The loaded icon with reference managed by state.
+            PhotoImage object ready to be passed to a tk.Button ``image`` option.
         """
-        # Create an invisible holder frame for the icon canvas
-        icon_holder = tk.Frame(self.parent)  # Hidden, won't be packed
+        icon_holder = tk.Frame(self.parent)  # Hidden — never packed
 
         icon_canvas = add_icon_canvas(
             f"btn_icon_{id(icon_path)}",
@@ -445,10 +399,9 @@ class PreviewPanelWidget(tk.Frame):
             icon_pos=(0, 0),
             icon_size=(16, 16),
             canvas_size=(16, 16),
-            visible=False,  # Don't display the canvas
+            visible=False,
         )
 
-        # Extract PhotoImage and store reference
         icon = icon_canvas.image
         if not hasattr(self.state, "_btn_icon_refs"):
             self.state._btn_icon_refs = []

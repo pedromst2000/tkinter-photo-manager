@@ -619,7 +619,7 @@ def _read_reports() -> list:
         with open(path, "r", encoding="utf-8-sig", newline="") as f:
             for parts in csv.reader(
                 f
-            ):  # expected: id,reporterId,reasonId,photoId,commentId
+            ):  # expected: id,reporterId,reasonId,photoId,commentId,description
                 if parts[0] == "id":
                     continue
                 if len(parts) < 5:
@@ -632,6 +632,9 @@ def _read_reports() -> list:
                     comment_id = int(parts[4]) if parts[4].strip() else None
                 except (ValueError, TypeError):
                     comment_id = None
+                description = (
+                    parts[5].strip() if len(parts) > 5 and parts[5].strip() else None
+                )
                 # reason now stored as FK id (report_reasons.id)
                 try:
                     reason_id = int(parts[2])
@@ -645,6 +648,7 @@ def _read_reports() -> list:
                         reasonId=reason_id,
                         photoId=photo_id,
                         commentId=comment_id,
+                        description=description,
                     )
                 )
         log_success(f"Loaded {len(data)} reports.")

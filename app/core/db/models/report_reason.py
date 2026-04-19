@@ -1,6 +1,9 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import (
     CheckConstraint,
     Column,
+    DateTime,
     Integer,
     String,
     UniqueConstraint,
@@ -36,6 +39,14 @@ class ReportReasonModel(Base):
 
     id: int = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
     label: str = Column(String(50), unique=True, nullable=False)
+    createdAt: DateTime = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updatedAt: DateTime = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
 
     def to_dict(self) -> dict:
         """

@@ -1,6 +1,6 @@
 from typing import Callable, List
 
-from app.presentation.views.explore.helpers.data.state import ExploreState
+from app.presentation.views.helpers.data.state import ExploreState
 
 
 class PaginationManager:

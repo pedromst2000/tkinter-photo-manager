@@ -1,6 +1,6 @@
-from app.presentation.views.explore.helpers.data.pagination import PaginationManager
-from app.presentation.views.explore.helpers.data.state import ExploreState
-from app.presentation.views.explore.helpers.ui.preview import update_preview
+from app.presentation.views.helpers.data.pagination import PaginationManager
+from app.presentation.views.helpers.data.state import ExploreState
+from app.presentation.views.helpers.ui.preview import update_preview
 
 
 def navigate_prev(state: ExploreState):

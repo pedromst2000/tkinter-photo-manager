@@ -3,12 +3,12 @@ import tkinter as tk
 from app.controllers.auth_controller import AuthController
 from app.presentation.styles.colors import colors
 from app.presentation.styles.fonts import quickSandBold
-from app.presentation.views.auth.helpers import (
+from app.presentation.views.auth.register import registerWindow
+from app.presentation.views.helpers.auth.ui import (
     attach_password_visibility,
     auth_switch_label,
     trigger_check_login,
 )
-from app.presentation.views.auth.register import registerWindow
 from app.presentation.views.home.home_banned import homeBannedWindow
 from app.presentation.views.home.main import homeWindow
 from app.presentation.widgets.helpers.button import on_enter as button_on_enter

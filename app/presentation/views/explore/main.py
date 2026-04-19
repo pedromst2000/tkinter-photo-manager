@@ -2,8 +2,6 @@ import tkinter as tk
 
 from app.core.state.session import session
 from app.presentation.styles.fonts import quickSandRegular
-from app.presentation.views.explore.helpers.data.catalog import load_catalog
-from app.presentation.views.explore.helpers.data.state import ExploreState
 from app.presentation.views.explore.helpers.ui.builder import (
     _PAGE_BG,
     _WIN_H,
@@ -12,6 +10,8 @@ from app.presentation.views.explore.helpers.ui.builder import (
     build_preview_panel,
     build_treeview_panel,
 )
+from app.presentation.views.helpers.data.catalog import load_catalog
+from app.presentation.views.helpers.data.state import ExploreState
 from app.presentation.widgets.helpers.icon_label import add_label
 from app.presentation.widgets.helpers.ui_dialogs import show_limited_access
 from app.presentation.widgets.window import create_toplevel

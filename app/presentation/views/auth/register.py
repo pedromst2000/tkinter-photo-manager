@@ -3,7 +3,7 @@ import tkinter as tk
 from app.controllers.auth_controller import AuthController
 from app.presentation.styles.colors import colors
 from app.presentation.styles.fonts import quickSandBold
-from app.presentation.views.auth.helpers import (
+from app.presentation.views.helpers.auth.ui import (
     attach_password_visibility,
     auth_switch_label,
 )

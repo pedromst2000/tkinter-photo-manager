@@ -2,8 +2,8 @@ import tkinter as tk
 from tkinter import messagebox
 
 from app.controllers.explore_controller import ExploreController
-from app.presentation.views.explore.helpers.data.state import ExploreState
-from app.presentation.views.explore.helpers.ui.preview import update_preview
+from app.presentation.views.helpers.data.state import ExploreState
+from app.presentation.views.helpers.ui.preview import update_preview
 
 
 def handle_like(state: ExploreState, parent: tk.Widget):

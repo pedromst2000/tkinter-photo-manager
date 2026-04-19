@@ -5,7 +5,7 @@ from typing import (  # For type hinting tk.Button without importing the entire 
 )
 
 from app.core.state.session import session
-from app.presentation.views.explore.helpers.data.state import ExploreState
+from app.presentation.views.helpers.data.state import ExploreState
 from app.presentation.widgets.helpers.images import load_image
 from app.utils.file_utils import resolve_image_path
 

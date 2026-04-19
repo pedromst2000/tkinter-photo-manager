@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from app.core.services.report_service import ReportService
 from app.core.state.session import session
@@ -27,13 +27,42 @@ class ReportController:
         return ReportService.get_reason_labels()
 
     @staticmethod
-    def report_photo(photo_id: int, reason: str) -> Tuple[bool, str]:
+    def check_already_reported(
+        photo_id: Optional[int] = None,
+        comment_id: Optional[int] = None,
+    ) -> bool:
+        """
+        Check if the current user has already reported this photo or comment.
+
+        Args:
+            photo_id: The ID of the photo to check.
+            comment_id: The ID of the comment to check.
+
+        Returns:
+            bool: True if the current user has already reported this content.
+        """
+        user_id = session.user_id
+        if user_id is None:
+            return False
+        try:
+            return ReportService.has_user_reported(
+                user_id, photo_id=photo_id, comment_id=comment_id
+            )
+        except Exception as e:
+            log_exception("report.check_already_reported", e)
+            return False
+
+    @staticmethod
+    def report_photo(
+        photo_id: int, reason: str, description: str | None = None
+    ) -> Tuple[bool, str]:
         """
         Submit a report against a photo.
 
         Args:
             photo_id: The ID of the photo being reported.
             reason: The reason label chosen by the reporter.
+            description: Optional extra detail (required when reason is "Other").
         Returns:
             Tuple[bool, str]: (success, message)
 
@@ -49,7 +78,10 @@ class ReportController:
 
         try:
             success, message = ReportService.submit_report(
-                reporter_id=user_id, reason=reason, photo_id=photo_id
+                reporter_id=user_id,
+                reason=reason,
+                photo_id=photo_id,
+                description=description,
             )
             if success:
                 log_operation(
@@ -73,13 +105,16 @@ class ReportController:
             return False, "Something went wrong. Please try again later."
 
     @staticmethod
-    def report_comment(comment_id: int, reason: str) -> Tuple[bool, str]:
+    def report_comment(
+        comment_id: int, reason: str, description: str | None = None
+    ) -> Tuple[bool, str]:
         """
         Submit a report against a comment.
 
         Args:
             comment_id: The ID of the comment being reported.
             reason: The reason label chosen by the reporter.
+            description: Optional extra detail (required when reason is "Other").
 
         Returns:
             Tuple[bool, str]: (success, message)
@@ -96,7 +131,10 @@ class ReportController:
 
         try:
             success, message = ReportService.submit_report(
-                reporter_id=user_id, reason=reason, comment_id=comment_id
+                reporter_id=user_id,
+                reason=reason,
+                comment_id=comment_id,
+                description=description,
             )
             if success:
                 log_operation(

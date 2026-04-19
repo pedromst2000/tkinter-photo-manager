@@ -24,7 +24,7 @@ def trigger_check_login(
         main_window: The main application window.
 
     Returns:
-        A function that can be used as an event handler for login actions.
+        Callable[[Optional[tk.Event]], None]: A function that can be used as an event handler for login actions.
 
     """
 
@@ -58,7 +58,7 @@ def auth_switch_label(
         *click_args: Additional arguments to pass to the click handler when the label is clicked.
 
     Returns:
-        The created `tk.Label` widget.
+        tk.Label: The created `tk.Label` widget.
     """
 
     # Defer heavy imports to avoid module-level side-effects / circular refs
@@ -100,10 +100,10 @@ def attach_password_visibility(
         input_password: The Entry widget for the password input that this canvas will control.
         x: The x-coordinate for placing the canvas.
         y: The y-coordinate for placing the canvas.
-        bg_color: Optional background color for the canvas. If not provided, a default from the
+        bg_color: Optional[str]: Optional background color for the canvas. If not provided, a default from the
             colors module will be used.
     Returns:
-        The created `tk.Canvas` widget that serves as the password visibility toggle.
+        tk.Canvas: The created `tk.Canvas` widget that serves as the password visibility toggle.
 
     """
     # Defer imports to avoid circular references and heavy module loads

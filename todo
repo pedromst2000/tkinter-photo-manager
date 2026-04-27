@@ -1,6 +1,5 @@
 User Stories - Requirements - Features
 
-<!--Convert the requirements into a table of requirements -->
 
 ## ADMIN USER - Manage Users
 
@@ -10,7 +9,6 @@ User Stories - Requirements - Features
 - [ ] **Block users**: Temporarily suspend or block users for bad behavior.
 - [ ] **Unblock users**: Restore access for previously blocked users.
 - [ ] **Manage reported content**: Admin can review and remove inappropriate photos/comments.
-
 
 ## ADMIN USER - Manage Categories
 
@@ -100,6 +98,16 @@ User Stories - Requirements - Features
 - [X] **Rating System**: Implement a rating system where users can rate photos on a scale of 1 to 5 stars. The average rating should be displayed on the photo preview card and the photo detail view. Users should be able to update their rating, and the average rating should reflect any changes made by users. 
 - [X] **Hoover and Select Rating**: When a user hovers over the rating stars, they should be able to see the rating options and select their desired rating. Once a rating is selected, it should be submitted and the average rating should be updated accordingly.
 
+## ALL USERS - Comments
+
+- [X] **Add comment**: Users can add comments to photos.
+- [X] **View comments**: Users can view comments on photos.
+- [X] **Delete comment**: Users can delete their own comments. Admin can delete any comment. (Delete button only visible to comment owner and admins)
+- [X] **Admin Delete comment**: Allow admins to delete any comment from the photo detail view. (Visible to admins on all comments)
+- [X] **Empty state No Comments**: Show empty state when no comments on the photo.
+- [X] **Comment details**: Show comment details (author(avatar, username), content, timestamp) on the photo detail view and comments view.
+- [ ] **Timestamp format**: Display comment timestamps in a human-readable format (e.g., "2 hours ago", "Yesterday", "3 days ago") instead of raw date-time values. It can´t be the created_at timestamp because when the comment is edited, the created_at timestamp is updated to the edit time. So we need to have a separate field for the original creation time of the comment that does not change when the comment is edited. This way, we can display the correct "time ago" format based on the original creation time of the comment, even if it has been edited.
+
 ## ALL USERS - Notifications
 
 - [ ] **Notification system**: Users receive notifications for interactions (e.g., new comment, like, album favorited).
@@ -108,7 +116,7 @@ User Stories - Requirements - Features
     - A user likes their photo.
     - A user adds their album to favorites.
     - New follower.
-    - Comment or photo deleted by admin.
+    - Comment or photo deleted by admin (notify with a reason provided by the removed content)
   - Notification details should include:
     - Type of interaction (e.g., comment, like, favorite).
     - User who performed the interaction (e.g., username and avatar).
@@ -125,4 +133,4 @@ User Stories - Requirements - Features
 
 ## ALL USERS - Reporting & Moderation
 
-- [ ] **Report content**: Users can report inappropriate photos or comments, providing a reason for the report ( e.g., "Inappropriate content", "Spam", "Harassment"). Reported content should be flagged for admin review. If selected other, a text input should appear to provide more details about the report. This information should be included in the report sent to the admin for review.
+- [X] **Report content**: Users can report inappropriate photos or comments, providing a reason for the report ( e.g., "Inappropriate content", "Spam", "Harassment"). Reported content should be flagged for admin review. If selected other, a text input should appear to provide more details about the report. This information should be included in the report sent to the admin for review.
